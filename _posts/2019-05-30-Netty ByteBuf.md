@@ -77,6 +77,7 @@ ByteBuf提供一系列方法来创建基于某个ByteBuf的视图或者复制Byt
 除了顺序读写操作以外，ByteBuf还支持指定位置的读写。但需要注意的是set和get操作不会触发自动扩容的逻辑，所以在调用随机读写操作前需要保证提供的位置索引合法，否则会抛出异常。
 
 ## 子类划分
+
 ByteBuf部分子类结构图如下：
 
 ![子类](/img/netty_bytebuf_classes.png)
@@ -197,3 +198,53 @@ private int calculateNewCapacity(int minNewCapacity) {
     return Math.min(newCapacity, maxCapacity);
 }
 ```
+
+首先设置门限值为4MB，根据minNewCapacity和门限的大小来判断扩容逻辑：如果需要的新的容量大小为4M，则返回4M；如果新容量没有超过4M，则从64开始逐渐倍增，直到大于或等于新容量为止；如果新容量超过了4M，则每次步进4M，直到满足要求。在算出新的容量之后还需要和设定的最大容量比较，如果超过了最大容量则返回最大容量，否则返回计算出的新容量值。
+
+之所以采用倍增加步进的算法，是因为如果直接用minNewCapacity作为新的容量值，那么本次写入之后可写缓冲区大大小为0，下一次写入则又需要动态扩容。设置门限的原因在于在初始值较小的时候采取倍增的方法不会有太大影响，但当增长到一定阈值之后，再进行倍增可能会带来额外的消耗。比如内存增长到了10M，而此时系统需要12M，如果再进行倍增的话就到达20M，就有8M的空间被浪费了。随着客户端连接的线性增长，内存浪费的大小也随之增长，内存消耗的成本会成比例的增加，所以需要在到达某个阈值之后进行平滑的扩张。而此处的门限值4M则是一个经验值，不同的应用场景可能不同。
+
+在计算出新的容量之后，需要创建新的缓冲区并将当前缓冲区的内容复制到新的缓冲区中，即此处的capacity方法，该方法也是一个抽象方法。
+
+### 重用缓冲区
+
+前面提到过ByteBuf的缓冲区被两个位置指针分割为三个区域，在readerIndex以前的部分是已读部分，可以通过discardBytes来重用这部分缓冲区。
+
+```java
+public ByteBuf discardReadBytes() {
+    ensureAccessible();
+    if (readerIndex == 0) {
+        return this;
+    }
+
+    if (readerIndex != writerIndex) {
+        setBytes(0, this, readerIndex, writerIndex - readerIndex);
+        writerIndex -= readerIndex;
+        adjustMarkers(readerIndex);
+        readerIndex = 0;
+    } else {
+        adjustMarkers(readerIndex);
+        writerIndex = readerIndex = 0;
+    }
+    return this;
+}
+```
+
+首先判断如果readerIndex为0，也就是没有已读的缓冲区，这时候直接返回。如果readerIndex和writerIndex相等，即所有的数据都被读取过了，这时候直接把readerIndex和writerIndex设为0，相当于重用整个缓冲区，但这时候并不会修改缓冲区内容。如果readerIndex和writerIndex不相等，那么整个ByteBuf缓冲区包含三个部分：已读部分、可读部分、可写部分，这时候调用setBytes进行内容复制，将可读部分复制到缓冲区起始，然后重新设置readerIndex和writerIndex。在设置读写索引的同时还需调用adjustMarkers方法正确地设置备份的markedReaderIndex和markedWriterIndex。
+
+除了discardReadBytes以外，还有一个类似的方法discardSomeReadBytes()，这个方法的名字有些迷惑，它的具体功能与discardBytes大致一样，唯一的区别当缓冲区有未读部分时，他会判断readerIndex是否大于容量的一半，如果是则调用setBytes复制和重用缓冲区内容，否则什么也不做。
+
+### 跳过字节
+
+AbstractByteBuf还提供跳过某些字节的方法，该方法只有一个参数length，即要跳过的字节数，调用者需保证length参数的合法性，否则会抛出异常，该方法的具体实现就是将readerIndex增加length。
+
+```java
+public ByteBuf skipBytes(int length) {
+    checkReadableBytes(length);
+    readerIndex += length;
+    return this;
+}
+```
+
+### 其他子类
+
+AbstractByteBuf有很多具体实现，比如UnpooledHeapByteBuf，它基于堆内存来分配缓冲区，其内部是一个byte数组，它的扩容和复制都使用是的System.arrayCopy方法，与UnpooledHeapByteBuf对应的还有UnpooledDirectByteBuf，它使用直接内存做缓冲区。此外还有基于对象池的PooledHeapByteBuf和PooledDirectByteBuf，它们的创建和销毁策略有所不同，其他的功能都是等同的。
