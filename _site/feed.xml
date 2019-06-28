@@ -1,4 +1,117 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-05-30T15:47:01+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">Guava ListenableFuture</title><link href="http://localhost:4000/2019/05/30/Guava-ListenableFuture.html" rel="alternate" type="text/html" title="Guava ListenableFuture" /><published>2019-05-30T00:00:00+08:00</published><updated>2019-05-30T00:00:00+08:00</updated><id>http://localhost:4000/2019/05/30/Guava%20ListenableFuture</id><content type="html" xml:base="http://localhost:4000/2019/05/30/Guava-ListenableFuture.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-06-28T21:04:01+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">Unix域协议</title><link href="http://localhost:4000/2019/06/28/Unix-Domain-Protol.html" rel="alternate" type="text/html" title="Unix域协议" /><published>2019-06-28T00:00:00+08:00</published><updated>2019-06-28T00:00:00+08:00</updated><id>http://localhost:4000/2019/06/28/Unix%20Domain%20Protol</id><content type="html" xml:base="http://localhost:4000/2019/06/28/Unix-Domain-Protol.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
+
+&lt;p&gt;如果我们的目的仅是在同一台主机上的不同进程之间进行通信，那么除了TCP/UDP套接字以外我们还可以使用Unix域协议。Unix域协议是IPC（进程间通信）的方式之一，Unix域协议使用套接字API，支持同一台主机的不同进程之间进行通信。直观上来说Unix域协议有点类似使用本地回环接口（lo）的TCP/UDP。但是Unix域协议比起TCP/UDP套接字还有几个其他优势：1.比起TCP协议通常要更快；2.支持在同一台主机上的不同进程之间传递描述符；3.支持传递客户端凭证。&lt;/p&gt;
+
+&lt;p&gt;使用Unix域协议的套接字（以下简称uds[unix domain socket]）用到的API与TCP/UDP套接字API完全一致，即服务端需要进行bind、listen、accpet等操作才能读写，客户端需要先connect才能进行读写。与TCP/UDP套接字不同的一点是uds绑定的地址是一个文件系统的绝对路径，比如”/tmp/myuds”，而TCP/UDP套接字使用的地址则包含了地址和端口号。uds使用的路径并不是普通的文件，需要和uds关联才能对其进行读写。Unix域套接字有两种类型，字节流套接字（类似TCP）和数据报套接字（类似UDP）。&lt;/p&gt;
+
+&lt;h2 id=&quot;相关api&quot;&gt;相关API&lt;/h2&gt;
+
+&lt;h3 id=&quot;unix域协议的地址结构&quot;&gt;unix域协议的地址结构&lt;/h3&gt;
+
+&lt;p&gt;前面提到uds并不使用地址加端口号作为协议地址，而是用一个文件路径来作为地址，所以uds使用的地址结构也有一点不同：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt;  &lt;span class=&quot;n&quot;&gt;sockaddr_un&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;sa_family_t&lt;/span&gt;     &lt;span class=&quot;n&quot;&gt;sun_family&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;     &lt;span class=&quot;cm&quot;&gt;/* 协议族，通常为AF_UNIX或者AF_LOCAL */&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;            &lt;span class=&quot;n&quot;&gt;sun_path&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;104&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;  &lt;span class=&quot;cm&quot;&gt;/* 地址路径 */&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;uds使用的地址结构叫做sockaddr_un，后面的un即unix，而TCP/UDP套接字使用的地址结构叫做sockaddr_in，in表示internet。&lt;/p&gt;
+&lt;blockquote&gt;
+  &lt;blockquote&gt;
+    &lt;p&gt;unix域协议虽然名字里有unix，但它是POSIX的一部分，并不与unix系统强绑定，POSIX将unix域协议重新命名为“本地IPC”，把AF_UNIX改为了AF_LOCAL，但更多的时候我们还是称其为unix域协议，我们常见的linux和macos都支持unix域协议。&lt;/p&gt;
+  &lt;/blockquote&gt;
+&lt;/blockquote&gt;
+
+&lt;h3 id=&quot;unix域协议配合套接字api&quot;&gt;unix域协议配合套接字API&lt;/h3&gt;
+
+&lt;p&gt;unix域协议的使用方式与TCP/UDP套接字的方式类似，只需要将协议族替换为AF_LOCAL（或者AF_UNIX），然后将地址替换为sockaddr_un即可。下面是一个使用uds进行bind，然后通过getsockname获取套接字名称并打印的例子：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cp&quot;&gt;#include &quot;unp.h&quot;
+&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;main&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;argc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;**&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;argv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;                 &lt;span class=&quot;n&quot;&gt;sockfd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;socklen_t&lt;/span&gt;           &lt;span class=&quot;n&quot;&gt;len&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sockaddr_un&lt;/span&gt;  &lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;argc&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;err_quit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;usage: unixbind &amp;lt;pathname&amp;gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;//先调用socket创建套接字&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;sockfd&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Socket&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;AF_LOCAL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SOCK_STREAM&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;//对已存在的路径进行bind会导致失败，所以预先调用unlink删除文件&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;unlink&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;argv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]);&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;//调用bzero初始化地址结构体&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;bzero&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;//设置协议族为AF_LOCAL，AF_UNIX也可以&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sun_family&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;AF_LOCAL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;//设置地址的文件路径&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;strncpy&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sun_path&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;argv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;],&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sun_path&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;//调用bind，通过SUN_LEN计算bind所需的长度这个参数&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;Bind&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sockfd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;SA&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SUN_LEN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;
+
+    &lt;span class=&quot;n&quot;&gt;len&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;//获得socket的名字&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;Getsockname&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sockfd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;SA&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;len&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;printf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;bound name = %s, returned len = %d&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sun_path&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;len&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;exit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;执行上面的程序，我们就可以看到控制台会有类似这样的输出：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;bound name = xxx, returned len = yy
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;程序会输出我们绑定的路径以及对应的socket长度，这时候也可以看到对应路径也自动创建了同名的文件。如果用&lt;code class=&quot;highlighter-rouge&quot;&gt;ls -lF&lt;/code&gt;命令查看，可以看到对应的文件类型为socket。&lt;/p&gt;
+
+&lt;h3 id=&quot;socketpair&quot;&gt;socketpair&lt;/h3&gt;
+
+&lt;p&gt;socketpair函数可以创建两个连接起来的unix域套接字：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cp&quot;&gt;#include &amp;lt;sys/socket.h&amp;gt;
+&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;socketpair&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;family&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;type&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;protocol&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sockfd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]);&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;socketpair的参数中family必须为AF_LOCAL，protocol必须为0，type可以为SOCK_STREAM或者SOCK_DGRAM，新创建的两个套接字描述符将作为sockfd[0]和sockfd[1]返回。&lt;/p&gt;
+
+&lt;h3 id=&quot;套接字函数&quot;&gt;套接字函数&lt;/h3&gt;
+
+&lt;p&gt;使用uds时，套接字函数中存在一些差异和限制，具体列举如下：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;有bind创建的路径名默认的权限为0777（所有者、组用户和其他用户都可读、可写、可执行），并按照当前umask进行修正。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;blockquote&gt;
+  &lt;blockquote&gt;
+    &lt;p&gt;umask和chmod中的权限配合使用，是权限的“补码”。比如在我的电脑上umask的值是022，所以uds创建出来的路径权限为777-022=755，表示所有者可读可写可执行，组用户和其他用户可读可写。而通常新创建的目录默认的权限为0777，新创建的文件默认的权限为0666.&lt;/p&gt;
+  &lt;/blockquote&gt;
+&lt;/blockquote&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;uds绑定的路径应使用绝对路径。避免使用相对路径的原因是相对路径的解析会依赖调用者的当前路径。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;blockquote&gt;
+  &lt;blockquote&gt;
+    &lt;p&gt;POSIX声称使用相对路径绑定到uds将导致不可预计的结果&lt;/p&gt;
+  &lt;/blockquote&gt;
+&lt;/blockquote&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;调用conenct时传入的路径必须是和一个已经打开的uds绑定的路径。并且两个套接字的type（数据报或者字节流）必须相同。出错的条件有几个：a)路径已存在，但不是一个uds;b)路径已存在且是一个uds，但是没有与之关联的打开的描述符;c)路径已存在并且是一个打开的uds，但是类型不同。&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;调用connect连接一个uds涉及的权限检查等同于调用open以只读模式访问对应路径。&lt;/li&gt;
+  &lt;li&gt;unix域字节流套接字与TCP套接字类似，它们都提供无记录边界的字节流接口。&lt;/li&gt;
+  &lt;li&gt;如果对一个uds进行connect时发现监听套接字的队列已满，调用会立即返回一个ECONNECTREFUSED错误；而TCP监听套接字在队列满时则会忽略新到达的SYNC，进而连接发起端发起端进行重试。&lt;/li&gt;
+  &lt;li&gt;unix域数据报套接字与UDP套接字类似，它们都提供保留记录边界的不可靠的数据报服务。&lt;/li&gt;
+  &lt;li&gt;在未绑定的uds上发送数据不会自动为其绑定一个路径，这一点不同于UDP套接字：在一个未绑定的UDP套接字上发送数据会为其绑定一个临时端口。这意味着&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&quot;优势&quot;&gt;优势&lt;/h2&gt;
+&lt;h2 id=&quot;java中的uds&quot;&gt;java中的uds&lt;/h2&gt;</content><author><name></name></author><summary type="html">简介</summary></entry><entry><title type="html">Guava ListenableFuture</title><link href="http://localhost:4000/2019/05/30/Guava-ListenableFuture.html" rel="alternate" type="text/html" title="Guava ListenableFuture" /><published>2019-05-30T00:00:00+08:00</published><updated>2019-05-30T00:00:00+08:00</updated><id>http://localhost:4000/2019/05/30/Guava%20ListenableFuture</id><content type="html" xml:base="http://localhost:4000/2019/05/30/Guava-ListenableFuture.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
 
 &lt;p&gt;ListenableFuture继承自java.util.concurrent.Future，旨在降低异步开发的难度。&lt;/p&gt;
 
@@ -419,6 +532,7 @@ ByteBuf提供一系列方法来创建基于某个ByteBuf的视图或者复制Byt
 除了顺序读写操作以外，ByteBuf还支持指定位置的读写。但需要注意的是set和get操作不会触发自动扩容的逻辑，所以在调用随机读写操作前需要保证提供的位置索引合法，否则会抛出异常。&lt;/p&gt;
 
 &lt;h2 id=&quot;子类划分&quot;&gt;子类划分&lt;/h2&gt;
+
 &lt;p&gt;ByteBuf部分子类结构图如下：&lt;/p&gt;
 
 &lt;p&gt;&lt;img src=&quot;/img/netty_bytebuf_classes.png&quot; alt=&quot;子类&quot; /&gt;&lt;/p&gt;
@@ -533,7 +647,55 @@ ensureWritable的实现如下：&lt;/p&gt;
 
     &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Math&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;min&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;newCapacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;maxCapacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
 &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;</content><author><name></name></author><category term="[&quot;netty&quot;]" /><summary type="html">简介</summary></entry><entry><title type="html">Disruptor介绍</title><link href="http://localhost:4000/2019/05/27/Disruptor.html" rel="alternate" type="text/html" title="Disruptor介绍" /><published>2019-05-27T00:00:00+08:00</published><updated>2019-05-27T00:00:00+08:00</updated><id>http://localhost:4000/2019/05/27/Disruptor</id><content type="html" xml:base="http://localhost:4000/2019/05/27/Disruptor.html">&lt;p&gt;大部分内容翻译自Disruptor在github上的&lt;a href=&quot;https://github.com/LMAX-Exchange/disruptor/wiki&quot;&gt;wiki&lt;/a&gt;&lt;/p&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;首先设置门限值为4MB，根据minNewCapacity和门限的大小来判断扩容逻辑：如果需要的新的容量大小为4M，则返回4M；如果新容量没有超过4M，则从64开始逐渐倍增，直到大于或等于新容量为止；如果新容量超过了4M，则每次步进4M，直到满足要求。在算出新的容量之后还需要和设定的最大容量比较，如果超过了最大容量则返回最大容量，否则返回计算出的新容量值。&lt;/p&gt;
+
+&lt;p&gt;之所以采用倍增加步进的算法，是因为如果直接用minNewCapacity作为新的容量值，那么本次写入之后可写缓冲区大大小为0，下一次写入则又需要动态扩容。设置门限的原因在于在初始值较小的时候采取倍增的方法不会有太大影响，但当增长到一定阈值之后，再进行倍增可能会带来额外的消耗。比如内存增长到了10M，而此时系统需要12M，如果再进行倍增的话就到达20M，就有8M的空间被浪费了。随着客户端连接的线性增长，内存浪费的大小也随之增长，内存消耗的成本会成比例的增加，所以需要在到达某个阈值之后进行平滑的扩张。而此处的门限值4M则是一个经验值，不同的应用场景可能不同。&lt;/p&gt;
+
+&lt;p&gt;在计算出新的容量之后，需要创建新的缓冲区并将当前缓冲区的内容复制到新的缓冲区中，即此处的capacity方法，该方法也是一个抽象方法。&lt;/p&gt;
+
+&lt;h3 id=&quot;重用缓冲区&quot;&gt;重用缓冲区&lt;/h3&gt;
+
+&lt;p&gt;前面提到过ByteBuf的缓冲区被两个位置指针分割为三个区域，在readerIndex以前的部分是已读部分，可以通过discardBytes来重用这部分缓冲区。&lt;/p&gt;
+
+&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ByteBuf&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;discardReadBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;ensureAccessible&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;writerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;setBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;writerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;writerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;adjustMarkers&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;adjustMarkers&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;writerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;首先判断如果readerIndex为0，也就是没有已读的缓冲区，这时候直接返回。如果readerIndex和writerIndex相等，即所有的数据都被读取过了，这时候直接把readerIndex和writerIndex设为0，相当于重用整个缓冲区，但这时候并不会修改缓冲区内容。如果readerIndex和writerIndex不相等，那么整个ByteBuf缓冲区包含三个部分：已读部分、可读部分、可写部分，这时候调用setBytes进行内容复制，将可读部分复制到缓冲区起始，然后重新设置readerIndex和writerIndex。在设置读写索引的同时还需调用adjustMarkers方法正确地设置备份的markedReaderIndex和markedWriterIndex。&lt;/p&gt;
+
+&lt;p&gt;除了discardReadBytes以外，还有一个类似的方法discardSomeReadBytes()，这个方法的名字有些迷惑，它的具体功能与discardBytes大致一样，唯一的区别当缓冲区有未读部分时，他会判断readerIndex是否大于容量的一半，如果是则调用setBytes复制和重用缓冲区内容，否则什么也不做。&lt;/p&gt;
+
+&lt;h3 id=&quot;跳过字节&quot;&gt;跳过字节&lt;/h3&gt;
+
+&lt;p&gt;AbstractByteBuf还提供跳过某些字节的方法，该方法只有一个参数length，即要跳过的字节数，调用者需保证length参数的合法性，否则会抛出异常，该方法的具体实现就是将readerIndex增加length。&lt;/p&gt;
+
+&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ByteBuf&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;skipBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;checkReadableBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;其他子类&quot;&gt;其他子类&lt;/h3&gt;
+
+&lt;p&gt;AbstractByteBuf有很多具体实现，比如UnpooledHeapByteBuf，它基于堆内存来分配缓冲区，其内部是一个byte数组，它的扩容和复制都使用是的System.arrayCopy方法，与UnpooledHeapByteBuf对应的还有UnpooledDirectByteBuf，它使用直接内存做缓冲区。此外还有基于对象池的PooledHeapByteBuf和PooledDirectByteBuf，它们的创建和销毁策略有所不同，其他的功能都是等同的。&lt;/p&gt;</content><author><name></name></author><category term="[&quot;netty&quot;]" /><summary type="html">简介</summary></entry><entry><title type="html">Disruptor介绍</title><link href="http://localhost:4000/2019/05/27/Disruptor.html" rel="alternate" type="text/html" title="Disruptor介绍" /><published>2019-05-27T00:00:00+08:00</published><updated>2019-05-27T00:00:00+08:00</updated><id>http://localhost:4000/2019/05/27/Disruptor</id><content type="html" xml:base="http://localhost:4000/2019/05/27/Disruptor.html">&lt;p&gt;大部分内容翻译自Disruptor在github上的&lt;a href=&quot;https://github.com/LMAX-Exchange/disruptor/wiki&quot;&gt;wiki&lt;/a&gt;&lt;/p&gt;
 
 &lt;h2 id=&quot;介绍&quot;&gt;介绍&lt;/h2&gt;
 
