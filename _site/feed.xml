@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-06-28T21:04:01+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">Unix域协议</title><link href="http://localhost:4000/2019/06/28/Unix-Domain-Protol.html" rel="alternate" type="text/html" title="Unix域协议" /><published>2019-06-28T00:00:00+08:00</published><updated>2019-06-28T00:00:00+08:00</updated><id>http://localhost:4000/2019/06/28/Unix%20Domain%20Protol</id><content type="html" xml:base="http://localhost:4000/2019/06/28/Unix-Domain-Protol.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-06-30T16:49:32+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">Unix域协议</title><link href="http://localhost:4000/2019/06/28/Unix-Domain-Protol.html" rel="alternate" type="text/html" title="Unix域协议" /><published>2019-06-28T00:00:00+08:00</published><updated>2019-06-28T00:00:00+08:00</updated><id>http://localhost:4000/2019/06/28/Unix%20Domain%20Protol</id><content type="html" xml:base="http://localhost:4000/2019/06/28/Unix-Domain-Protol.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
 
 &lt;p&gt;如果我们的目的仅是在同一台主机上的不同进程之间进行通信，那么除了TCP/UDP套接字以外我们还可以使用Unix域协议。Unix域协议是IPC（进程间通信）的方式之一，Unix域协议使用套接字API，支持同一台主机的不同进程之间进行通信。直观上来说Unix域协议有点类似使用本地回环接口（lo）的TCP/UDP。但是Unix域协议比起TCP/UDP套接字还有几个其他优势：1.比起TCP协议通常要更快；2.支持在同一台主机上的不同进程之间传递描述符；3.支持传递客户端凭证。&lt;/p&gt;
 
@@ -79,9 +79,9 @@
 
 &lt;p&gt;使用uds时，套接字函数中存在一些差异和限制，具体列举如下：&lt;/p&gt;
 
-&lt;ol&gt;
+&lt;ul&gt;
   &lt;li&gt;有bind创建的路径名默认的权限为0777（所有者、组用户和其他用户都可读、可写、可执行），并按照当前umask进行修正。&lt;/li&gt;
-&lt;/ol&gt;
+&lt;/ul&gt;
 
 &lt;blockquote&gt;
   &lt;blockquote&gt;
@@ -89,9 +89,9 @@
   &lt;/blockquote&gt;
 &lt;/blockquote&gt;
 
-&lt;ol&gt;
+&lt;ul&gt;
   &lt;li&gt;uds绑定的路径应使用绝对路径。避免使用相对路径的原因是相对路径的解析会依赖调用者的当前路径。&lt;/li&gt;
-&lt;/ol&gt;
+&lt;/ul&gt;
 
 &lt;blockquote&gt;
   &lt;blockquote&gt;
@@ -99,19 +99,73 @@
   &lt;/blockquote&gt;
 &lt;/blockquote&gt;
 
-&lt;ol&gt;
-  &lt;li&gt;
-    &lt;p&gt;调用conenct时传入的路径必须是和一个已经打开的uds绑定的路径。并且两个套接字的type（数据报或者字节流）必须相同。出错的条件有几个：a)路径已存在，但不是一个uds;b)路径已存在且是一个uds，但是没有与之关联的打开的描述符;c)路径已存在并且是一个打开的uds，但是类型不同。&lt;/p&gt;
-  &lt;/li&gt;
+&lt;ul&gt;
+  &lt;li&gt;调用conenct时传入的路径必须是和一个已经打开的uds绑定的路径。并且两个套接字的type（数据报或者字节流）必须相同。出错的条件有几个：a)路径已存在，但不是一个uds;b)路径已存在且是一个uds，但是没有与之关联的打开的描述符;c)路径已存在并且是一个打开的uds，但是类型不同。&lt;/li&gt;
   &lt;li&gt;调用connect连接一个uds涉及的权限检查等同于调用open以只读模式访问对应路径。&lt;/li&gt;
   &lt;li&gt;unix域字节流套接字与TCP套接字类似，它们都提供无记录边界的字节流接口。&lt;/li&gt;
   &lt;li&gt;如果对一个uds进行connect时发现监听套接字的队列已满，调用会立即返回一个ECONNECTREFUSED错误；而TCP监听套接字在队列满时则会忽略新到达的SYNC，进而连接发起端发起端进行重试。&lt;/li&gt;
   &lt;li&gt;unix域数据报套接字与UDP套接字类似，它们都提供保留记录边界的不可靠的数据报服务。&lt;/li&gt;
-  &lt;li&gt;在未绑定的uds上发送数据不会自动为其绑定一个路径，这一点不同于UDP套接字：在一个未绑定的UDP套接字上发送数据会为其绑定一个临时端口。这意味着&lt;/li&gt;
+  &lt;li&gt;在未绑定的uds上发送数据不会自动为其绑定一个路径，这一点不同于UDP套接字：在一个未绑定的UDP套接字上发送数据会为其绑定一个临时端口。这意味着除非数据报发送端已经绑定到一个路径，否则数据报接收端无法发回应答数据报。类似的，对于uds的connect调用不会为其绑定一个路径，这一点不同于TCP/UDP。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;什么场景下可以选择uds&quot;&gt;什么场景下可以选择uds&lt;/h2&gt;
+
+&lt;h3 id=&quot;本机通信&quot;&gt;本机通信&lt;/h3&gt;
+
+&lt;p&gt;当我们需要在本机通信时，可以使用uds来代替本地回环接口。uds相比TCP/UDP套接字性能会更好，因为它不需要经过网络协议栈，省去了各种解析和应答等步骤，而是直接在内核拷贝传递数据。比如最近很热的service mesh，业务进程和sidecar就可以通过uds来通信。&lt;/p&gt;
+
+&lt;h3 id=&quot;传递描述符&quot;&gt;传递描述符&lt;/h3&gt;
+
+&lt;p&gt;当我们需要传递描述符时，通常可以使用方法有：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;fork调用返回以后，子进程共享父进程的所有描述符&lt;/li&gt;
+  &lt;li&gt;exec调用执行后，所有的描述符通常保持打开状态&lt;/li&gt;
 &lt;/ol&gt;
 
-&lt;h2 id=&quot;优势&quot;&gt;优势&lt;/h2&gt;
-&lt;h2 id=&quot;java中的uds&quot;&gt;java中的uds&lt;/h2&gt;</content><author><name></name></author><summary type="html">简介</summary></entry><entry><title type="html">Guava ListenableFuture</title><link href="http://localhost:4000/2019/05/30/Guava-ListenableFuture.html" rel="alternate" type="text/html" title="Guava ListenableFuture" /><published>2019-05-30T00:00:00+08:00</published><updated>2019-05-30T00:00:00+08:00</updated><id>http://localhost:4000/2019/05/30/Guava%20ListenableFuture</id><content type="html" xml:base="http://localhost:4000/2019/05/30/Guava-ListenableFuture.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
+&lt;p&gt;第一种方式里，我们可以把描述符从父进程传递到子进程，然而我们也可能需要在子进程传递描述符到父进程。unix系统提供了用于从一个进程向其他任意进程传递描述符的方式，而这两个进程不需要有任何亲缘关系。这种技术要求在两个进程之间创建一个uds，然后使用sendmsg通过这个uds发送特殊结构的消息。这个特殊的消息会由内核处理，把打开的描述符从发送进程传递到接收进程。&lt;/p&gt;
+
+&lt;p&gt;通过uds传递描述符的步骤具体如下：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;创建一个字节流或数据报的uds。这可以通过调用socketpair然后父子进程之间的连接；也可以使用套接字API。通常建议使用字节流套接字而不是数据报套接字，因为使用数据报套接字并没有什么好处，反而还存在数据报被丢弃的可能。&lt;/li&gt;
+  &lt;li&gt;发送端打开描述符。uds可以传递各种类型的描述符，而不是仅包括文件描述符。&lt;/li&gt;
+  &lt;li&gt;发送端进程创建一个msghdr的结构，其中含有待传递的描述符，然后调用sendmsg将其发送出去。发送一个描述符会使其引用计数加一。&lt;/li&gt;
+  &lt;li&gt;接收端进程调用recvmsg在创建的uds上接收描述符。这个过程会在接收进程创建一个新的描述符，然后将其指向和发送进程发送的描述符指向的同一个内核文件选项。所以接收端收到的描述符不同于发送端发送端描述符时很正常的。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;msghdr的结构定义：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cm&quot;&gt;/*
+ * [XSI] Message header for recvmsg and sendmsg calls.
+ * Used value-result for recvmsg, value only for sendmsg.
+ */&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;msghdr&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;		&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;msg_name&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;cm&quot;&gt;/* [XSI] optional address */&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;socklen_t&lt;/span&gt;	&lt;span class=&quot;n&quot;&gt;msg_namelen&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;cm&quot;&gt;/* [XSI] size of address */&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt;		&lt;span class=&quot;n&quot;&gt;iovec&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;msg_iov&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;cm&quot;&gt;/* [XSI] scatter/gather array */&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;		&lt;span class=&quot;n&quot;&gt;msg_iovlen&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;cm&quot;&gt;/* [XSI] # elements in msg_iov */&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;		&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;msg_control&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;cm&quot;&gt;/* [XSI] ancillary data, see below */&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;socklen_t&lt;/span&gt;	&lt;span class=&quot;n&quot;&gt;msg_controllen&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;cm&quot;&gt;/* [XSI] ancillary data buffer len */&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;		&lt;span class=&quot;n&quot;&gt;msg_flags&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;cm&quot;&gt;/* [XSI] flags on received message */&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;具体的例子就暂时不列举了。&lt;/p&gt;
+
+&lt;h3 id=&quot;验证发送者的身份&quot;&gt;验证发送者的身份&lt;/h3&gt;
+
+&lt;p&gt;可以用uds传递的另一种辅助数据就是用户凭证。用户凭证的数据结构在不同的操作系统中并不一致，这里就不再详细介绍了。&lt;/p&gt;
+
+&lt;h3 id=&quot;uds的优势&quot;&gt;uds的优势&lt;/h3&gt;
+
+&lt;p&gt;uds是客户端和服务端在同一台主机上的IPC方法之一，与其他IPC方法（pipe，共享内存等）相比，uds的优势在于其使用的API几乎等同于网络通讯中使用的API，与客户端和服务端在同一台主机上的TCP相比，unix域字节流套接字的性能要更优。&lt;/p&gt;
+
+&lt;p&gt;此外，uds还支持传递其他辅助数据，比如描述符和用户凭证。&lt;/p&gt;
+
+&lt;h2 id=&quot;java中的uds&quot;&gt;java中的uds&lt;/h2&gt;
+
+&lt;p&gt;java中并不支持直接使用uds，可能是因为java标榜跨平台，而uds则只在部分操作系统中才能使用。要在java中使用uds，通常需要使用第三方提供的类库，比如著名的网络通讯组件netty就提供了uds通讯的支持。&lt;/p&gt;</content><author><name></name></author><summary type="html">简介</summary></entry><entry><title type="html">Guava ListenableFuture</title><link href="http://localhost:4000/2019/05/30/Guava-ListenableFuture.html" rel="alternate" type="text/html" title="Guava ListenableFuture" /><published>2019-05-30T00:00:00+08:00</published><updated>2019-05-30T00:00:00+08:00</updated><id>http://localhost:4000/2019/05/30/Guava%20ListenableFuture</id><content type="html" xml:base="http://localhost:4000/2019/05/30/Guava-ListenableFuture.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
 
 &lt;p&gt;ListenableFuture继承自java.util.concurrent.Future，旨在降低异步开发的难度。&lt;/p&gt;
 
