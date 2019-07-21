@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>redis热点 | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="redis热点" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="redis简介" />
+<meta property="og:description" content="redis简介" />
+<link rel="canonical" href="http://localhost:4000/2019/07/21/Redis-Hot-Key.html" />
+<meta property="og:url" content="http://localhost:4000/2019/07/21/Redis-Hot-Key.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2019-07-21T00:00:00+08:00" />
+<script type="application/ld+json">
+{"mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/07/21/Redis-Hot-Key.html"},"url":"http://localhost:4000/2019/07/21/Redis-Hot-Key.html","headline":"redis热点","dateModified":"2019-07-21T00:00:00+08:00","datePublished":"2019-07-21T00:00:00+08:00","description":"redis简介","@type":"BlogPosting","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">redis热点</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2019-07-21T00:00:00+08:00" itemprop="datePublished">Jul 21, 2019
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="redis简介">redis简介</h2>
+
+<p>redis是一个用C语言编写的开源的、基于内存的键值对存储数据库。redis支持多种数据结构如string、hash、list、set等等，同时还支持原子操作。相比起其他kv类型的数据库产品，redis有两个突出的特点：</p>
+
+<ol>
+  <li>redis支持多种数据结构，并且可以在复杂的数据结构上进行原子操作</li>
+  <li>redis支持数据的持久化，包括RDB和AOF格式</li>
+</ol>
+
+<p>除此之外，redis的另一个着重宣传的优势就是快，因为redis对数据的操作都是基于内存的，同时redis采用单线程模型，所有的命令都在同一个线程中执行，避免了线程切换的影响。</p>
+
+<h2 id="redis使用的限制">redis使用的限制</h2>
+
+<p>由于redis独特的单线程模型，在使用redis时需要注意几个地方，避免出现性能下降。</p>
+
+<h3 id="避免耗时的操作">避免耗时的操作</h3>
+
+<p>前面提到，redis只用一个线程处理所有的命令，所以应避免出现耗时的操作，否则会阻塞整个redis实例，影响性能。</p>
+
+<h3 id="避免大key">避免大key</h3>
+
+<p>大key指的是一个key对应的value过大的情况，比如string的长度非常大，或者hash、list、set、zset类型中元素个数非常多等等。redis中的大key会导致查询、删除等操作变慢，网卡带宽占满等问题，影响其他查询。</p>
+
+<h3 id="避免keys遍历">避免KEYS遍历</h3>
+
+<p>redis中的KEYS命令可以根据给定的正则表达式匹配所有符合的key，时间复杂度为O(N)，在key的数量特别多时耗时会变长，直接导致其他命令阻塞甚至实例崩溃。</p>
+
+<h2 id="redis热点产生的原因">redis热点产生的原因</h2>
+
+<p>在实际的生产中，我们通常会通过集群的模式部署redis来保证性能和可用性。redis集群的原理是通过分片来扩展服务能力，但不支持同时处理多个key的命令，来自客户端的请求会根据一定的规则路由到集群中的某个实例，而实例与实例之间不进行数据交换。</p>
+
+<p>热点通常是由实际业务中的热门商品、热点新闻或者突发事件引起的，这是用户会大量而且集中的访问某个数据。而在服务端访问数据时，就会根据数据分片规则访问某个redis实例，这时由于请求过于集中，所有的请求都会落到同一个实例，就产生了redis热点。</p>
+
+<h2 id="redis热点的危害">redis热点的危害</h2>
+
+<p>redis热点实际上就是某个redis实例的负载过高，进而导致以下几个问题：</p>
+
+<ol>
+  <li>主机网卡被打满，影响主机上的其他服务</li>
+  <li>请求量过大，导致redis实例崩溃</li>
+  <li>redis失效导致业务降级到读取DB，进而导致DB也崩溃，业务雪崩</li>
+</ol>
+
+<h2 id="redis热点的解决方法">redis热点的解决方法</h2>
+
+<h3 id="避免直接读db">避免直接读DB</h3>
+
+<p>这是比较简单的方法，业务的服务端维护一个本地缓存，当redis负载过高或者崩溃时不降级到DB，而是返回本地缓存中的数据。但是这个方案有以下几个问题：</p>
+
+<ol>
+  <li>需要一个判断是否返回本地缓存的机制</li>
+  <li>需要维护本地缓存</li>
+</ol>
+
+<h3 id="读写分离">读写分离</h3>
+
+<p>读写分离的方案需要引入一个代理层，在redis客户端与redis集群之间增加一个代理，来自客户端的请求会先经过代理层做负载均衡和路由。然后redis集群中的实例分为读和写两类，读节点只负责读取数据。当出现redis请求热点时，读节点负载就会上升，这是我们可以扩容出更多的读节点来分担负载，避免redis实例崩溃。但是这种方案由以下几个要求：</p>
+
+<ol>
+  <li>需要维护代理层和负载均衡</li>
+  <li>需要实时监控redis负载</li>
+  <li>需要支持节点扩缩容</li>
+</ol>
+
+<h3 id="热点数据缓存">热点数据缓存</h3>
+
+<p>另一种可以选择的方案就是对热点数据进行缓存，这里可以选择在代理层进行缓存或者是在客户端缓存。当发现有redis热点时，可以及时从缓存读取，避免直接向redis实例发起请求。这个方案有以下几个要求：</p>
+
+<ol>
+  <li>需要维护本地缓存</li>
+  <li>需要redis热点发现机制</li>
+</ol>
+
+<h3 id="热点的发现">热点的发现</h3>
+
+<p>热点的发现可以通过统计的方式实现。我们可以在代理层周期统计每个key的访问情况，当超过指定阈值时key就成为了热点key。</p>
+
+  </div><a class="u-url" href="/2019/07/21/Redis-Hot-Key.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
