@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>linux 线程机制 | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="linux 线程机制" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="前言" />
+<meta property="og:description" content="前言" />
+<link rel="canonical" href="http://localhost:4000/2019/07/28/LinuxThread&NPTL.html" />
+<meta property="og:url" content="http://localhost:4000/2019/07/28/LinuxThread&NPTL.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2019-07-28T00:00:00+08:00" />
+<script type="application/ld+json">
+{"mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/07/28/LinuxThread&NPTL.html"},"url":"http://localhost:4000/2019/07/28/LinuxThread&NPTL.html","headline":"linux 线程机制","dateModified":"2019-07-28T00:00:00+08:00","datePublished":"2019-07-28T00:00:00+08:00","description":"前言","@type":"BlogPosting","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">linux 线程机制</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2019-07-28T00:00:00+08:00" itemprop="datePublished">Jul 28, 2019
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="前言">前言</h2>
+
+<p>前面提到进程和线程的区别，进程是资源分配的基本单位，线程是程序执行的基本单位。线程都属于某个进程，而同一个进程下的不同线程分别有共享和独享的数据，这里在列举一下：</p>
+
+<p>同一进程内的所有线程除了共享全局变量外还共享：</p>
+
+<ul>
+  <li>进程指令</li>
+  <li>大多数数据</li>
+  <li>打开的文件（即描述符）</li>
+  <li>信号处理函数和信号处置</li>
+  <li>当前工作目录</li>
+  <li>用户ID和组ID</li>
+</ul>
+
+<p>不过每个线程有各自的：</p>
+
+<ul>
+  <li>线程ID</li>
+  <li>寄存器集合，包括程序计数器和栈指针</li>
+  <li><code class="highlighter-rouge">errno</code></li>
+  <li>信号掩码</li>
+  <li>优先级</li>
+</ul>
+
+<p>linux是遵循POSIX标准的操作系统，所以linux也需要提供遵循POSIX标准的线程实现。而最初linux系统中的线程机制则是LinuxThreads，在2.6版本之后又增加了NPTL（Native POSIX Thread Library）。</p>
+
+<h2 id="内核线程和用户线程">内核线程和用户线程</h2>
+
+<p>对于线程的实现机制来说，通常可以选择在内核内或者内核外实现，这两种方式的区别在于线程是在核内还是核外调度。核内调度更利于并发使用多处理器的资源，内核可以将同一个进程的不同线程调度到不同处理器上执行，当某个线程阻塞时，内核可以将处理器调度到同一个进程的另一个线程。而核外调度的上下文切换开销更低，因为线程的切换不用陷入内核态。</p>
+
+<h2 id="进程-线程模型">进程-线程模型</h2>
+
+<p>当内核既支持进程也支持线程时，就可以实现线程-进程的”多对多”模型，即一个进程的某个线程由核内调度，而同时它也可以作为用户级线程池的调度者，选择合适的用户级线程在其空间中运行。这样既可满足多处理机系统的需要，也可以最大限度的减小调度开销。</p>
+
+<p>在内核外实现的线程又可以分为”一对一”、”多对一”两种模型，前者用一个内核进程对应一个线程，将线程调度等同于进程调度，交给内核完成，而后者则完全在核外实现多线程，调度也在用户态完成。后者就是前面提到的单纯的用户级线程模型的实现方式，显然，这种核外的线程调度器实际上只需要完成线程运行栈的切换，调度开销非常小，但同时因为内核信号都是以进程为单位的，因而无法定位到线程，所以这种实现方式不能用于多处理器系统。</p>
+
+<h2 id="linux的轻量级进程">linux的轻量级进程</h2>
+
+<p>linux内核只提供了轻量进程的支持，限制了更高效的线程模型的实现，但linux着重优化了进程的调度开销，一定程度上也弥补了这一缺陷。目前linux的线程机制都采用的线程-进程”一对一”模型，调度交给内核，而在用户级实现一个包括信号处理在内的线程管理机制。</p>
+
+<p>linux内核在2.0.x版本就已经实现了轻量进程，应用程序可以通过一个统一的<code class="highlighter-rouge">clone</code>系统调用接口，用不同的参数指定创建轻量进程还是普通进程。在内核中，<code class="highlighter-rouge">clone</code>调用经过参数传递和解释后会调用<code class="highlighter-rouge">do_fork</code>，这个核内函数同时也是<code class="highlighter-rouge">fork</code>、<code class="highlighter-rouge">vfork</code>系统调用的最终实现：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">intdo_fork</span><span class="p">(</span><span class="n">unsignedlongclone_flags</span><span class="p">,</span><span class="n">unsignedlongstack_start</span><span class="p">,</span><span class="n">structpt_regs</span><span class="o">*</span><span class="n">regs</span><span class="p">,</span><span class="n">unsignedlongstack_size</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p><code class="highlighter-rouge">在do_fork</code>中，不同的clone_flags将导致不同的行为（共享不同的资源），下面列举几个flag的作用。</p>
+
+<p><strong>CLONE_VM</strong>
+如果<code class="highlighter-rouge">do_fork</code>时指定了<code class="highlighter-rouge">CLONE_VM</code>开关，创建的轻量级进程的内存空间将会和父进程指向同一个地址，即创建的轻量级进程将与父进程共享内存地址空间。</p>
+
+<p><strong>CLONE_FS</strong></p>
+
+<p>如果<code class="highlighter-rouge">do_fork</code>时指定了<code class="highlighter-rouge">CLONE_FS</code>开关，对于轻量级进程则会与父进程共享相同的所在文件系统的根目录和当前目录信息。也就是说，轻量级进程没有独立的文件系统相关的信息，进程中任何一个线程改变当前目录、根目录等信息都将直接影响到其他线程。</p>
+
+<p><strong>CLONE_FILES</strong></p>
+
+<p>如果<code class="highlighter-rouge">do_fork</code>时指定了<code class="highlighter-rouge">CLONE_FILES</code>开关，创建的轻量级进程与父进程将会共享已经打开的文件。这一共享使得任何线程都能访问进程所维护的打开文件，对它们的操作会直接反映到进程中的其他线程。</p>
+
+<p><strong>CLONE_SIGHAND</strong></p>
+
+<p>如果<code class="highlighter-rouge">do_fork</code>时指定了<code class="highlighter-rouge">CLONE_FILES</code>开关，轻量级进程与父进程将会共享对信号的处理方式。也就是说，子进程与父进程的信号处理方式完全相同，而且可以相互更改。</p>
+
+<p>尽管linux支持轻量级进程，但并不能说它就支持内核线程，因为linux的”线程”和”进程”实际上处于一个调度层次，共享一个进程标识符空间，这种限制使得不可能在linux上实现完全意义上的POSIX线程机制，因此众多的linux线程库实现尝试都只能尽可能实现POSIX的绝大部分语义，并在功能上尽可能逼近。</p>
+
+<h2 id="linuxthreads的线程机制">LinuxThreads的线程机制</h2>
+
+<p>LinuxThreads是linux平台上使用过的一个线程库。它所实现的就是基于内核轻量级进程的”一对一”线程模型，一个线程实体对应一个核心轻量级进程，而线程之间的管理在核外函数库中实现。对于LinuxThreads，它使用<code class="highlighter-rouge">(CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND)</code>参数来调用<code class="highlighter-rouge">clone</code>创建”线程”，表示共享内存、共享文件系统访问计数、共享文件描述符表，以及共享信号处理方式。</p>
+
+<h3 id="管理线程">管理线程</h3>
+
+<p>LinuxThreads最初的设计相信相关进程之间的上下文切换速度很快，因此每个内核线程足以处理很多相关的用户级线程。LinuxThreads非常出名的一个特性就是管理线程（manager thread）。在LinuxThreads中，专门为每一个进程构造了一个管理线程，负责处理线程相关的管理工作。当进程第一次调用<code class="highlighter-rouge">pthread_create</code>创建一个线程的时候就会创建并启动管理线程。</p>
+
+<p>在一个进程空间内，管理线程与其他线程之间通过一对”管理管道（manager_pipe[2]）”来通讯，该管道在创建管理线程之前创建，在成功启动了管理线程之后，管理管道的读端和写端分别赋给两个全局变量<code class="highlighter-rouge">__pthread_manager_reader</code>和<code class="highlighter-rouge">__pthread_manager_request</code>，之后，每个用户线程都通过<code class="highlighter-rouge">__pthread_manager_request</code>向管理线程发请求，但管理线程本身并没有直接使用<code class="highlighter-rouge">__pthread_manager_reader</code>，管道的读端（manager_pipe[0]）是作为<code class="highlighter-rouge">__clone()</code>的参数之一传给管理线程的，管理线程的工作主要就是监听管道读端，并对从中取出的请求作出反应。</p>
+
+<p>管理线程在进行一系列初始化工作后，进入while(1)循环。在循环中，线程以2秒为timeout查询（__poll()）管理管道的读端。在处理请求前，检查其父线程是否已退出，如果已退出就退出整个进程。如果有退出的子线程需要清理，则进行清理。然后才是读取管道中的请求，根据请求类型执行相应操作（switch-case）。</p>
+
+<p>每个LinuxThreads线程都同时具有线程id和进程id，其中进程id就是内核所维护的进程号，而线程id则由LinuxThreads分配和维护。</p>
+
+<h3 id="linuxthreads的局限性">LinuxThreads的局限性</h3>
+
+<p>LinuxThreads的设计通常都可以很好地工作；但是在压力很大的应用程序中，它的性能、可伸缩性和可用性都会存在问题。下面让我们来看一下LinuxThreads设计的一些局限性：</p>
+
+<ul>
+  <li>进程id问题：linux内核并不支持真正意义上的线程，LinuxThreads是用与普通进程具有同样内核调度视图的轻量级进程来实现线程支持的。这些轻量级进程拥有独立的进程id，在进程调度、信号处理、IO等方面享有与普通进程一样的能力。在源码阅读者看来，就是linux内核的<code class="highlighter-rouge">clone</code>没有实现对CLONE_PID参数的支持。按照POSIX定义，同一进程的所有线程应该共享一个进程id和父进程id，这在目前的”一对一”模型下是无法实现的。</li>
+  <li>管理线程容易成为瓶颈，这是这种结构的通病；同时，管理线程又负责用户线程的清理工作，因此，尽管管理线程已经屏蔽了大部分的信号，但一旦管理线程死亡，用户线程就不得不手工清理了，而且用户线程并不知道管理线程的状态，之后的线程创建等请求将无人处理。</li>
+  <li>信号用来实现同步原语，这会影响操作的响应时间。另外，将信号发送到主进程的概念也并不存在。因此，这并不遵守POSIX中处理信号的方法。</li>
+  <li>LinuxThreads中对信号的处理是按照每线程的原则建立的，而不是按照每进程的原则建立的，这是因为每个线程都有一个独立的进程ID。由于信号被发送给了一个专用的线程，因此信号是串行化的——也就是说，信号是透过这个线程再传递给其他线程的。这与POSIX标准对线程进行并行处理的要求形成了鲜明的对比。例如，在LinuxThreads中，通过kill()所发送的信号被传递到一些单独的线程，而不是集中整体进行处理。这意味着如果有线程阻塞了这个信号，那么LinuxThreads就只能对这个线程进行排队，并在线程开放这个信号时在执行处理，而不是像其他没有阻塞信号的线程中一样立即处理这个信号。</li>
+  <li>由于LinuxThreads中的每个线程都是一个进程，因此用户和组ID的信息可能对单个进程中的所有线程来说都不是通用的。例如，一个多线程的setuid()/setgid()进程对于不同的线程来说可能都是不同的。</li>
+  <li>由于每个线程都是一个单独的进程，因此/proc目录中会充满众多的进程项，而这实际上应该是线程。</li>
+  <li>由于每个线程都是一个进程，因此对每个应用程序只能创建有限数目的线程。</li>
+  <li>由于计算线程本地数据的方法是基于堆栈地址的位置的，因此对于这些数据的访问速度都很慢。另外一个缺点是用户无法可信地指定堆栈的大小，因为用户可能会意外地将堆栈地址映射到本来要为其他目的所使用的区域上了。按需增长（growondemand）的概念（也称为浮动堆栈的概念）是在2.4.10版本的linux内核中实现的。在此之前，LinuxThreads使用的是固定堆栈。</li>
+</ul>
+
+<h2 id="nptl">NPTL</h2>
+
+<p>NPTL（Native POSIX Thread Library）是linux线程的一个新实现，它克服了LinuxThreads的缺点，同时也符合POSIX的需求。与LinuxThreads相比，它在性能和稳定性方面都提供了重大的改进。与LinuxThreads一样，NPTL也实现了一对一的模型。</p>
+
+<p>NPTL出现的一部分原因是对LinuxThreads进行改进，它设计目标如下：</p>
+
+<ul>
+  <li>这个新线程库应该兼容POSIX标准。</li>
+  <li>这个线程实现应该在具有很多处理器的系统上也能很好地工作。</li>
+  <li>为一小段任务创建新线程应该具有很低的启动成本。</li>
+  <li>NPTL线程库应该与LinuxThreads是二进制兼容的。</li>
+  <li>这个新线程库应该可以利用NUMA支持的优点。</li>
+</ul>
+
+<h3 id="nptl的优点">NPTL的优点</h3>
+
+<p>NPTL总的来说采用了LinuxThreads类似的解决办法，内核看到的依然是一个进程，新线程是通过<code class="highlighter-rouge">clone()</code>系统调用产生的。与LinuxThreads相比，NPTL具有很多优点：</p>
+
+<ul>
+  <li>NPTL没有使用管理线程。管理线程的一些需求，例如向作为进程一部分的所有线程发送终止信号，是并不需要的；因为内核本身就可以实现这些功能。内核还会处理每个线程堆栈所使用的内存的回收工作。它甚至还通过在清除父线程之前进行等待，从而实现对所有线程结束的管理，这样可以避免僵尸进程的问题。</li>
+  <li>由于NPTL没有使用管理线程，因此其线程模型在NUMA和SMP系统上具有更好的可伸缩性和同步机制。</li>
+  <li>使用NPTL线程库与新内核实现，就可以避免使用信号来对线程进行同步了。为了这个目的，NPTL引入了一种名为<code class="highlighter-rouge">futex</code>的新机制。<code class="highlighter-rouge">futex</code>在共享内存区域上进行工作，因此可以在进程之间进行共享，这样就可以提供进程间POSIX同步机制。我们也可以在进程之间共享一个<code class="highlighter-rouge">futex</code>。这种行为使得进程间同步成为可能。实际上，NPTL包含了一个<code class="highlighter-rouge">PTHREAD_PROCESS_SHARED</code>宏，使得开发人员可以让用户级进程在不同进程的线程之间共享互斥锁。</li>
+  <li>由于NPTL是POSIX兼容的，因此它对信号的处理是按照每进程的原则进行的；getpid()会为所有的线程返回相同的进程ID。例如，如果发送了SIGSTOP信号，那么整个进程都会停止；使用LinuxThreads，只有接收到这个信号的线程才会停止。这样可以在基于NPTL的应用程序上更好地利用调试器，例如GDB。</li>
+  <li>由于在NPTL中所有线程都具有一个父进程，因此对父进程汇报的资源使用情况（例如CPU和内存百分比）都是对整个进程进行统计的，而不是对一个线程进行统计的。</li>
+  <li>NPTL线程库所引入的一个实现特性是对ABI（应用程序二进制接口）的支持。这帮助实现了与LinuxThreads的向后兼容性。这个特性是通过使用<code class="highlighter-rouge">LD_ASSUME_KERNEL</code>实现的。</li>
+</ul>
+
+<h3 id="futex">futex</h3>
+
+<p>futex（Fast Userspace muTexes）意为快速用户区互斥，它是linux提供的一种同步（互斥）机制，特点是对于条件的判断是发生在用户空间的，在竞争不激烈的情况下能有更好的性能表现。futex在2.6.x系列稳定版内核中出现。</p>
+
+<p>futex由一块能够被多个进程共享的内存空间（一个对齐后的整型变量）组成；这个整型变量的值能够通过汇编语言调用CPU提供的原子操作指令来增加或减少，并且一个进程可以等待直到那个值变成正数。Futex 的操作几乎全部在用户空间完成；只有当操作结果不一致从而需要仲裁时，才需要进入操作系统内核空间执行。这种机制允许使用 futex 的锁定原语有非常高的执行效率：由于绝大多数的操作并不需要在多个进程之间进行仲裁，所以绝大多数操作都可以在应用程序空间执行，而不需要使用（相对高代价的）内核系统调用。</p>
+
+  </div><a class="u-url" href="/2019/07/28/LinuxThread&NPTL.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

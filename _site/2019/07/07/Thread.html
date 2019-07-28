@@ -58,7 +58,7 @@
 
 <p>线程有助于解决这两个问题。线程有时称为轻量进程（lightweight process），因为线程比进程更轻量。也就是说，线程的创建可能比进程的创建快10~100倍。同一进程内的所有线程共享相同的全局内存。这使得线程之间易于共享信息，然而伴随这种简易性而来的却是同步（synchronization）问题。</p>
 
-<p>统一进程内的所有线程除了共享全局变量外还共享：</p>
+<p>同一进程内的所有线程除了共享全局变量外还共享：</p>
 
 <ul>
   <li>进程指令</li>
@@ -199,7 +199,7 @@
 
 <h2 id="条件变量">条件变量</h2>
 
-<p>互斥锁适合于防止同事访问某个共享变量，但我们需要另外某种在等待期间让我们进入睡眠的方式。条件变量（condition variable）结合互斥锁能够提供这样的功能。互斥锁提供互斥机制，条件变量提供信号机制。</p>
+<p>互斥锁适合于防止同时访问某个共享变量，但我们需要另外某种在等待期间让我们进入睡眠的方式。条件变量（condition variable）结合互斥锁能够提供这样的功能。互斥锁提供互斥机制，条件变量提供信号机制。</p>
 
 <p>按照Pthread，条件变量是类型为<code class="highlighter-rouge">pthread_cond_t</code>的变量。以下两个函数用来使用条件变量：</p>
 
@@ -283,7 +283,7 @@
 
 <p><code class="highlighter-rouge">pthread_cond_timedwait</code>允许线程设置一个阻塞时间的限制。<code class="highlighter-rouge">abstime</code>是一个<code class="highlighter-rouge">timespec</code>结构，指定该函数必须返回时刻的系统时间，即到时候相应条件变量尚未收到信号的话，就会返回<code class="highlighter-rouge">ETIME</code>错误。</p>
 
-<p>这里的<code class="highlighter-rouge">abstime</code>是一个绝对时间（absolute time），而不是一个时间增量（time delta）。这一点不同于<code class="highlighter-rouge">select</code>和<code class="highlighter-rouge">pselect</code>。使用绝对时间的优点在于，如果该函数过早返回（可能是因为捕获了某个信号，那么不必改动<code class="highlighter-rouge">timespec</code>结构就可以再次调用该函数；缺点是首次调用该函数之前不得不调用<code class="highlighter-rouge">gettimeofday</code>。</p>
+<p>这里的<code class="highlighter-rouge">abstime</code>是一个绝对时间（absolute time），而不是一个时间增量（time delta）。这一点不同于<code class="highlighter-rouge">select</code>和<code class="highlighter-rouge">pselect</code>。使用绝对时间的优点在于，如果该函数过早返回（可能是因为捕获了某个信号），那么不必改动<code class="highlighter-rouge">timespec</code>结构就可以再次调用该函数；缺点是首次调用该函数之前不得不调用<code class="highlighter-rouge">gettimeofday</code>。</p>
 
 <h2 id="总结">总结</h2>
 
@@ -295,7 +295,7 @@
 
 <h3 id="关联到java">关联到java</h3>
 
-<p>在java 1.2之后的版本，在java中创建的<code class="highlighter-rouge">Thread</code>，在linux平台下实际上就是<code class="highlighter-rouge">Pthread</code>。可以看出java中Thread的各个属性与Pthread比较类似（但是没有detached属性）。在同步方面，java有自己的同步机制（<code class="highlighter-rouge">synchronized</code>关键字），并没有直接使用Pthread中的同步原语。java 1.5之后引入的<code class="highlighter-rouge">java.util.concurrent.locks</code>中的库函数，则与Pthread同步原语由更多的相似的地方。</p>
+<p>在java 1.2之后的版本，在java中创建的<code class="highlighter-rouge">Thread</code>，在linux平台下实际上就是<code class="highlighter-rouge">Pthread</code>。可以看出java中Thread的各个属性与Pthread比较类似（但是没有detached属性）。在同步方面，java有自己的同步机制（<code class="highlighter-rouge">synchronized</code>关键字），并没有直接使用Pthread中的同步原语。java 1.5之后引入的<code class="highlighter-rouge">java.util.concurrent.locks</code>中的库函数，则与Pthread同步原语有更多的相似的地方。</p>
 
 <p>另外，java中<code class="highlighter-rouge">Object</code>的<code class="highlighter-rouge">wait/notify/notifyAll</code>，<code class="highlighter-rouge">Condition</code>的<code class="highlighter-rouge">await/signal</code>必须要在同步块中，其道理跟条件变量一样，都是为了避免信号丢失的问题。</p>
 
