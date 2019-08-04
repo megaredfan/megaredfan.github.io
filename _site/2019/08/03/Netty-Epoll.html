@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>netty中的epoll实现 | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="netty中的epoll实现" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="前言" />
+<meta property="og:description" content="前言" />
+<link rel="canonical" href="http://localhost:4000/2019/08/03/Netty-Epoll.html" />
+<meta property="og:url" content="http://localhost:4000/2019/08/03/Netty-Epoll.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2019-08-03T00:00:00+08:00" />
+<script type="application/ld+json">
+{"mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/08/03/Netty-Epoll.html"},"url":"http://localhost:4000/2019/08/03/Netty-Epoll.html","headline":"netty中的epoll实现","dateModified":"2019-08-03T00:00:00+08:00","datePublished":"2019-08-03T00:00:00+08:00","description":"前言","@type":"BlogPosting","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">netty中的epoll实现</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2019-08-03T00:00:00+08:00" itemprop="datePublished">Aug 3, 2019
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="前言">前言</h2>
+
+<p>在java中，IO多路复用的功能通过nio中的<code class="highlighter-rouge">Selector</code>提供，在不同的操作系统下jdk会通过spi的方式加载不同的实现，比如在macos下是<code class="highlighter-rouge">KQueueSelectorProvider</code>，<code class="highlighter-rouge">KQueueSelectorProvider</code>底层使用了kqueue来进行IO多路复用；在linux 2.6以后的版本则是<code class="highlighter-rouge">EPollSelectorProvider</code>，<code class="highlighter-rouge">EPollSelectorProvider</code>底层使用的是epoll。虽然jdk自身提供了selector的epoll实现，netty仍实现了自己的epoll版本，根据<a href="https://stackoverflow.com/a/23465481">netty开发者在StackOverflow的回答</a>，主要原因有两个：</p>
+
+<ol>
+  <li>支持更多socket option，比如TCP_CORK和SO_REUSEPORT</li>
+  <li>使用了边缘触发（ET）模式</li>
+</ol>
+
+<p>接下来就来看看netty自己实现的epoll版本的大概逻辑。</p>
+
+<h2 id="总体介绍">总体介绍</h2>
+
+<h3 id="使用方式">使用方式</h3>
+
+<p>在netty中，如果需要使用netty自己的epoll实现，需要在项目中添加netty-transport-native-epoll依赖，然后将代码中的<code class="highlighter-rouge">NioEvnetLoop</code>、<code class="highlighter-rouge">NioSocketChannel</code>、<code class="highlighter-rouge">NioServerSocketChannel</code>等替换为Epoll开头的类即可。具体参考<a href="https://netty.io/wiki/native-transports.html">Using the Linux native transport</a></p>
+
+<h3 id="与jdk原生实现的区别">与jdk原生实现的区别</h3>
+
+<p>总的来说，不管是jdk还是netty的版本，都是直接调用了linux的epoll来提供IO多路复用，netty的epoll实现与jdk的区别主要有两个：</p>
+
+<ol>
+  <li>使用了边缘触发（可以参考我的<a href="https://juejin.im/post/5cdaa67f518825691b4a5cc0">另一篇文章</a>）</li>
+  <li>使用了eventfd和timerfd来实现唤醒和超时控制，而jdk的实现则是使用了pipe和epoll自带的超时机制</li>
+</ol>
+
+<h2 id="具体实现">具体实现</h2>
+
+<h3 id="初始化">初始化</h3>
+
+<p><code class="highlighter-rouge">EpollEventLoop</code>在初始化时会创建三个fd：epollFd、eventFd、timerFd。epollFd用于进一步调用epoll_wait，而另外两个fd的作用前面已经提到了。除此之外，<code class="highlighter-rouge">EpollEventLoop</code>内部还维护了一个<code class="highlighter-rouge">selectStrategy</code>变量，<code class="highlighter-rouge">selectStrategy</code>用于决定当前的loop中的行为，内容不算复杂，具体的就不再展开了。</p>
+
+<p><code class="highlighter-rouge">EpollEventLoop</code>还维护了一个<code class="highlighter-rouge">EpollEventArray</code>类型的对象events，events就是epoll调用时的第二个参数，表示感兴趣的描述符集合，这个变量会被传递到native方法中。</p>
+
+<p>此外<code class="highlighter-rouge">EpollEventLoop</code>还有一个<code class="highlighter-rouge">IntObjectMap&lt;AbstractEpollChannel&gt;</code>类型的channels字段，表示当前EventLoop注册的所有Channel对象，其中key是channel对应的fd（文件描述符），因为epoll中接受的参数和返回的结果都是以整数形式的文件描述符表示的，value就是一个Channel对象，后续对Channel进行读写都会从这里查找（注：这里使用的IntObjectMap是netty自己实现的集合，主要目的是提升使用原生类型作为key或者value时的集合的性能，类似的实现还有hppc、FastUtil等等）。</p>
+
+<h3 id="注册感兴趣的连接">注册感兴趣的连接</h3>
+
+<p><code class="highlighter-rouge">EpollEventLoop</code>的<code class="highlighter-rouge">doRegister</code>方法中实现了注册连接的逻辑，就是调用<code class="highlighter-rouge">EpollEventLoop</code>的<code class="highlighter-rouge">add</code>方法：</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    <span class="kt">void</span> <span class="nf">add</span><span class="o">(</span><span class="n">AbstractEpollChannel</span> <span class="n">ch</span><span class="o">)</span> <span class="kd">throws</span> <span class="n">IOException</span> <span class="o">{</span>
+        <span class="k">assert</span> <span class="nf">inEventLoop</span><span class="o">();</span>
+        <span class="kt">int</span> <span class="n">fd</span> <span class="o">=</span> <span class="n">ch</span><span class="o">.</span><span class="na">socket</span><span class="o">.</span><span class="na">intValue</span><span class="o">();</span>
+        <span class="n">Native</span><span class="o">.</span><span class="na">epollCtlAdd</span><span class="o">(</span><span class="n">epollFd</span><span class="o">.</span><span class="na">intValue</span><span class="o">(),</span> <span class="n">fd</span><span class="o">,</span> <span class="n">ch</span><span class="o">.</span><span class="na">flags</span><span class="o">);</span>
+        <span class="n">AbstractEpollChannel</span> <span class="n">old</span> <span class="o">=</span> <span class="n">channels</span><span class="o">.</span><span class="na">put</span><span class="o">(</span><span class="n">fd</span><span class="o">,</span> <span class="n">ch</span><span class="o">);</span>
+    <span class="o">}</span>
+</code></pre></div></div>
+
+<p>可以看到这里调用了<code class="highlighter-rouge">Native.epolCtlAdd</code>，从名字就可以看出来，底层是调用了epoll_ctl方法，然后op参数为EPOLL_ADD。</p>
+
+<h3 id="事件循环">事件循环</h3>
+
+<p><code class="highlighter-rouge">EpollEventLoop</code>的主体就在它的<code class="highlighter-rouge">run</code>方法里，在<code class="highlighter-rouge">run</code>方法的主循环中会先通过<code class="highlighter-rouge">selectStrategy</code>决定要进行的操作是epollWait还是epollBusyWait。epollWait和epollBusyWait的区别就在于前者会计算出适合的超时时间然后调用一次epoll_wait直到有描述符就绪或超时，而后者会循环调用epoll_wait并将超时时间设置为0（也就是立即返回）直到有连接就绪为止。</p>
+
+<p>通过epollWait或者epollBusyWait获得的结果会保存在events当中，所以接下来就是调用<code class="highlighter-rouge">processReady</code>处理events中的各个就绪的fd。处理的过程就是根据fd从channels查到对应的channel然后进行读写等操作，详细的读写就不再展开介绍了。</p>
+
+<h3 id="超时和唤醒">超时和唤醒</h3>
+
+<p>前面提到了，netty的epoll逻辑中使用了eventfd和timerfd来实现唤醒和超时控制，evnetfd和timerfd从linux 2.6.22版本开始加入内核，其主要功能就是提供事件通知机制。eventfd可以创建一个文件描述符，在这个描述符上可以传递无符号整数，可以用来作为控制信息。timerfd也是创建一个文件描述符，在这个描述符上可以读取定时器事件，timerfd可以支持到纳秒级别。由于eventfd和timerfd都是基于描述符的，所以和select/poll/epoll这些api都比较契合。</p>
+
+<p><code class="highlighter-rouge">EpollEventLoop</code>在初始化时会首先创建epollfd、eventfd和timerfd，然后把eventfd和timerfd都加入到epoll的监听队列当中。eventfd用来做唤醒的支持，当需要唤醒<code class="highlighter-rouge">EpollEventLoop</code>时，就往eventfd写入一个数，这时eventfd就会变得可读，epoll就会及时返回。timerfd则作为epoll的超时控制，当需要超时的时候就在timerfd上设置一个时间间隔，超时时间到了之后timerfd就会变得可读，epoll也就会及时返回。这里使用timerfd作为超时控制而不是使用epoll自带的超时的原因大概有两个，一是使用timerfd可以用统一的处理方式对待超时事件和IO事件，二是timerfd支持的超时时间精度更高。</p>
+
+<p>顺便提一下，在jdk原生的实现中，唤醒是通过pipe实现的，<code class="highlighter-rouge">Selector</code>内部维护了一个pipe，初始化时将pipe的read端加入epoll的监听队列，当需要唤醒时就在pipe的write端写入数据，这样epoll就会及时返回。epoll返回后如果发现pipe可读，则将pipe中的数据读取完。</p>
+
+<h2 id="其他">其他</h2>
+
+<p>在之前的文章中提到过，将fd注册到epoll时如果采用了边缘触发，那么建议的使用方式是将fd设置为非阻塞模式，并且在描述符就绪时需要将就绪数据全部读取完（遇到EAGAIN）为止，否则可能会出现再也无法收到就绪通知的情况。</p>
+
+<p>而在netty的epoll实现中，所有的socket都是以ET模式注册的，而eventfd和timerfd则稍有不同。在netty 4.1.38.Final以前的版本，eventfd在注册到epollfd时使用时LT而不是ET，在每次processReady时如果eventfd可读则都会对其调用一次read。timerfd在注册到epollfd时使用的时ET，但是在每次processReady时如果timerfd可读也会对其调用一次read。而在4.1.38.Final版本，eventfd和timerfd都使用了ET，但是并不在processReady方法中读取这两个fd。对于eventfd，会在每次write返回EAGAIN时调用一次read，因为eventfd内部只能存储一个整数，所以当write出现EAGAIN时就说明目前有数据需要读取。而对于timerfd则只会在epollWait出现超时的时候调用一次read，其他情况下不会对timerfd调用read。因为在netty的实现中，每次进行epoll_wait时都会重新设置timerfd的超时时间，而每次更新timerfd的超时时间时，timerfd就会重新变为不可读状态，也就不用对其调用read了。</p>
+
+  </div><a class="u-url" href="/2019/08/03/Netty-Epoll.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
