@@ -1,4 +1,69 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-08-04T20:23:30+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">netty中的epoll实现</title><link href="http://localhost:4000/2019/08/03/Netty-Epoll.html" rel="alternate" type="text/html" title="netty中的epoll实现" /><published>2019-08-03T00:00:00+08:00</published><updated>2019-08-03T00:00:00+08:00</updated><id>http://localhost:4000/2019/08/03/Netty%20Epoll</id><content type="html" xml:base="http://localhost:4000/2019/08/03/Netty-Epoll.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-08-18T22:38:05+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">Linux磁盘缓存机制</title><link href="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html" rel="alternate" type="text/html" title="Linux磁盘缓存机制" /><published>2019-08-18T00:00:00+08:00</published><updated>2019-08-18T00:00:00+08:00</updated><id>http://localhost:4000/2019/08/18/Linux%20Disk%20Cache</id><content type="html" xml:base="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+
+&lt;p&gt;最近遇到了一起跟磁盘IO相关的线上故障，借此总结一下之前不太了解的Linux磁盘缓存相关的知识。&lt;/p&gt;
+
+&lt;p&gt;总的来说磁盘缓存出现的原因大概有两个：第一是访问磁盘的速度远慢于访问内存的速度，通过在内存中缓存磁盘内容可以提高访问速度；第二是根据程序的局部性原理，数据一旦被访问过，就很有可能在短时间内再次被访问，所以在内存中缓存磁盘内容可以提高程序运行速度。&lt;/p&gt;
+
+&lt;h3 id=&quot;局部性原理&quot;&gt;局部性原理&lt;/h3&gt;
+
+&lt;p&gt;程序局部性原理：程序在执行时呈现出局部性规律，即在一段时间内，整个程序的执行仅限于程序中的某一部分。相应地，执行所访问的存储空间也局限于某个内存区域，具体来说，局部性通常有两种形式：时间局部性和空间局部性。&lt;/p&gt;
+
+&lt;p&gt;时间局部性：被引用过一次的存储器位置在未来会被多次引用（通常在循环中）。&lt;/p&gt;
+
+&lt;p&gt;空间局部性：如果一个存储器的位置被引用，那么将来他附近的位置也会被引用。&lt;/p&gt;
+
+&lt;h2 id=&quot;页缓存&quot;&gt;页缓存&lt;/h2&gt;
+
+&lt;p&gt;Linux系统中为了减少对磁盘的IO操作，会将打开的磁盘内容进行缓存，而缓存的地方则是物理内存，进而将对磁盘的访问转换成对内存的访问，有效提高程序的速度。Linux的缓存方式是利用物理内存缓存磁盘上的内容，成为页缓存（page cache）。&lt;/p&gt;
+
+&lt;p&gt;页缓存是由内存中的物理页面组成的，其内容对应磁盘上的物理块。页缓存的大小会根据系统的内存空闲大小进行动态调整，它可以通过占用内存以扩张大小，也可以自我收缩以缓解内存使用压力。&lt;/p&gt;
+
+&lt;p&gt;在虚拟内存机制出现以前，操作系统使用块缓存系列，但是在虚拟内存出现以后，操作系统管理IO的粒度更大，因此采用了页缓存机制，页缓存是基于页的、面向文件的缓存机制。&lt;/p&gt;
+
+&lt;h3 id=&quot;页缓存的读取&quot;&gt;页缓存的读取&lt;/h3&gt;
+
+&lt;p&gt;Linux系统在读取文件时，会优先从页缓存中读取文件内容，如果页缓存不存在，系统会先从磁盘中读取文件内容更新到页缓存中，然后再从页缓存中读取文件内容并返回。大致过程如下：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;进程调用库函数read发起读取文件请求&lt;/li&gt;
+  &lt;li&gt;内核检查已打开的文件列表，调用文件系统提供的read接口&lt;/li&gt;
+  &lt;li&gt;找到文件对应的inode，然后计算出要读取的具体的页&lt;/li&gt;
+  &lt;li&gt;通过inode查找对应的页缓存，1）如果页缓存节点命中，则直接返回文件内容；2）如果没有对应的页缓存，则会产生一个缺页异常（page fault）。这是系统会创建新的空的页缓存并从磁盘中读取文件内容，更新页缓存，然后重复第4步&lt;/li&gt;
+  &lt;li&gt;读取文件返回&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;所以说，所有的文件内容的读取，无论最初有没有命中页缓存，最终都是直接来源于页缓存。&lt;/p&gt;
+
+&lt;h3 id=&quot;页缓存的写入&quot;&gt;页缓存的写入&lt;/h3&gt;
+
+&lt;p&gt;因为页缓存的存在，当一个进程调用write时，对文件的更新仅仅是被写到了文件的页缓存中，让后将对应的页标记为dirty，整个过程就结束了。Linux内核会在周期性地将脏页写回到磁盘，然后清理掉dirty标识。&lt;/p&gt;
+
+&lt;p&gt;由于写操作只会把变更写入页缓存，因此进程并不会因此为阻塞直到磁盘IO发生，如果此时计算机崩溃，写操作的变更可能并没有发生在磁盘上。所以对于一些要求比较严格的写操作，比如数据系统，就需要主动调用fsync等操作及时将变更同步到磁盘上。读操作则不同，read通常会阻塞直到进程读取到数据，而为了减少读操作的这种延迟，Linux系统还是用了“预读”的技术，即从磁盘中读取数据时，内核将会多读取一些页到页缓存中。&lt;/p&gt;
+
+&lt;h4 id=&quot;回写线程&quot;&gt;回写线程&lt;/h4&gt;
+
+&lt;p&gt;页缓存的回写是由内核中的单独的线程来完成的，回写线程会在以下3种情况下进行回写：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;空闲内存低于阈值时。当空闲内存不足时，需要释放掉一部分缓存，由于只有不脏的页才能被释放，所以需要把脏页都回写到磁盘，使其变为可回收的干净的页。&lt;/li&gt;
+  &lt;li&gt;脏页在内存中处理时间超过阈值时。这是为了确保脏页不会无限期的留在内存中，减少数据丢失的风险。&lt;/li&gt;
+  &lt;li&gt;当用户进程调用sync和fsync系统调用时。这是为了给用户进程提供强制回写的方法，满足回写要求严格的使用场景。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;回写线程的实现
+|    名称    | 版本 |  说明  |
+| ———- | — | —– |
+| bdflush |  2.6版本以前 | bdflush 内核线程在后台运行，系统中只有一个 bdflush 线程，当内存消耗到特定阀值以下时，bdflush 线程被唤醒。kupdated 周期性的运行，写回脏页。 但是整个系统仅仅只有一个 bdflush 线程，当系统回写任务较重时，bdflush 线程可能会阻塞在某个磁盘的I/O上，导致其他磁盘的I/O回写操作不能及时执行。|
+| pdflush       |  2.6版本引入 | pdflush 线程数目是动态的，取决于系统的I/O负载。它是面向系统中所有磁盘的全局任务的。 但是由于 pdflush 是面向所有磁盘的，所以有可能出现多个 pdflush 线程全部阻塞在某个拥塞的磁盘上，同样导致其他磁盘的I/O回写不能及时执行。|
+| flusher线程       |  2.6.32版本以后引入 | flusher 线程的数目不是唯一的，同时flusher线程不是面向所有磁盘的，而是每个flusher线程对应一个磁盘|&lt;/p&gt;
+
+&lt;h3 id=&quot;页缓存的回收&quot;&gt;页缓存的回收&lt;/h3&gt;
+
+&lt;p&gt;Linux中页缓存的替换逻辑是一个修改过的LRU实现，也称为双链策略。和以前不同，Linux维护的不再是一个LRU链表，而是维护两个链表：活跃链表和非活跃链表。处于活跃链表上的页面被认为是“热”的且不会被换出，而在非活跃链表上的页面则是可以被换出的。在活跃链表中的页面必须在其被访问时就处于非活跃链表中。两个链表都被伪LRU规则维护：页面从尾部加入，从头部移除，如同队列。两个链表需要维持平衡–如果活跃链表变得过多而超过了非活跃链表，那么活跃链表的头页面将被重新移回到非活跃链表中，一遍能再被回收。双链表策略解决了传统LRU算法中对仅一次访问的窘境。而且也更加简单的实现了伪LRU语义。这种双链表方式也称作LRU/2。更普遍的是n个链表，故称LRU/n。&lt;/p&gt;
+
+&lt;h2 id=&quot;总结&quot;&gt;总结&lt;/h2&gt;
+
+&lt;p&gt;在这次遇到的线上故障中，根本原因在于在业务逻辑中使用了临时文件做缓存，一个临时文件创建后如果在短时间内删除，这时候对这个文件的操作都是在页缓存内进行，不会实际回写到磁盘。当程序出现问题响应变慢时，临时文件存活时间变长，就可能会使其被回写到磁盘上，导致磁盘压力过大，进而影响整个系统。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">netty中的epoll实现</title><link href="http://localhost:4000/2019/08/03/Netty-Epoll.html" rel="alternate" type="text/html" title="netty中的epoll实现" /><published>2019-08-03T00:00:00+08:00</published><updated>2019-08-03T00:00:00+08:00</updated><id>http://localhost:4000/2019/08/03/Netty%20Epoll</id><content type="html" xml:base="http://localhost:4000/2019/08/03/Netty-Epoll.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
 
 &lt;p&gt;在java中，IO多路复用的功能通过nio中的&lt;code class=&quot;highlighter-rouge&quot;&gt;Selector&lt;/code&gt;提供，在不同的操作系统下jdk会通过spi的方式加载不同的实现，比如在macos下是&lt;code class=&quot;highlighter-rouge&quot;&gt;KQueueSelectorProvider&lt;/code&gt;，&lt;code class=&quot;highlighter-rouge&quot;&gt;KQueueSelectorProvider&lt;/code&gt;底层使用了kqueue来进行IO多路复用；在linux 2.6以后的版本则是&lt;code class=&quot;highlighter-rouge&quot;&gt;EPollSelectorProvider&lt;/code&gt;，&lt;code class=&quot;highlighter-rouge&quot;&gt;EPollSelectorProvider&lt;/code&gt;底层使用的是epoll。虽然jdk自身提供了selector的epoll实现，netty仍实现了自己的epoll版本，根据&lt;a href=&quot;https://stackoverflow.com/a/23465481&quot;&gt;netty开发者在StackOverflow的回答&lt;/a&gt;，主要原因有两个：&lt;/p&gt;
 
@@ -685,86 +750,137 @@
 
 &lt;h2 id=&quot;java中的uds&quot;&gt;java中的uds&lt;/h2&gt;
 
-&lt;p&gt;java中并不支持直接使用uds，可能是因为java标榜跨平台，而uds则只在部分操作系统中才能使用。要在java中使用uds，通常需要使用第三方提供的类库，比如著名的网络通讯组件netty就提供了uds通讯的支持。&lt;/p&gt;</content><author><name></name></author><summary type="html">简介</summary></entry><entry><title type="html">Guava ListenableFuture</title><link href="http://localhost:4000/2019/05/30/Guava-ListenableFuture.html" rel="alternate" type="text/html" title="Guava ListenableFuture" /><published>2019-05-30T00:00:00+08:00</published><updated>2019-05-30T00:00:00+08:00</updated><id>http://localhost:4000/2019/05/30/Guava%20ListenableFuture</id><content type="html" xml:base="http://localhost:4000/2019/05/30/Guava-ListenableFuture.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
+&lt;p&gt;java中并不支持直接使用uds，可能是因为java标榜跨平台，而uds则只在部分操作系统中才能使用。要在java中使用uds，通常需要使用第三方提供的类库，比如著名的网络通讯组件netty就提供了uds通讯的支持。&lt;/p&gt;</content><author><name></name></author><summary type="html">简介</summary></entry><entry><title type="html">Java中的代理</title><link href="http://localhost:4000/2019/05/30/Java-Proxy.html" rel="alternate" type="text/html" title="Java中的代理" /><published>2019-05-30T00:00:00+08:00</published><updated>2019-05-30T00:00:00+08:00</updated><id>http://localhost:4000/2019/05/30/Java%20Proxy</id><content type="html" xml:base="http://localhost:4000/2019/05/30/Java-Proxy.html">&lt;h2 id=&quot;序&quot;&gt;序&lt;/h2&gt;
 
-&lt;p&gt;ListenableFuture继承自java.util.concurrent.Future，旨在降低异步开发的难度。&lt;/p&gt;
+&lt;p&gt;代理模式是指为一个对象提供另一种访问方式，即通过一个代理对象来访问我们的目标对象，使得我们可以详细地控制访问行为。一般来说代理分为两种：静态代理和动态代理。&lt;/p&gt;
 
-&lt;p&gt;JDK中定义的Future表示一个异步操作，ListenableFuture在Future的基础上增加了一个addListener方法，可以在计算完成时触发回调逻辑，通过这样的扩展可以支持更多原生Future不支持的逻辑。ListenableFuture中新增的方法addListener(Runnable, Executor)，可以在指定Future上注册一个Runnable对象，这个Runnable会在Future完成的时候通过指定的Executor执行。&lt;/p&gt;
+&lt;h2 id=&quot;静态代理&quot;&gt;静态代理&lt;/h2&gt;
 
-&lt;p&gt;此外Guava还提供了一个方法用于在Future上注册回调，使用Futures类：Futures.addCallback(ListenableFuture&lt;V&gt;, FutureCallback&lt;V&gt;, Executor)，或者是Futures.addCallback(ListenableFuture&lt;V&gt;, FutureCallback&lt;V&gt;)。这里需要注意的是如果在注册callback时没有指定Executor，那么注册的callback默认会在当前线程执行，所以对于包含重量级逻辑的callback，最好在注册时指定Executor。&lt;/V&gt;&lt;/V&gt;&lt;/V&gt;&lt;/V&gt;&lt;/p&gt;
+&lt;p&gt;静态代理中通常有以下三个对象：&lt;/p&gt;
 
-&lt;h2 id=&quot;listenablefuture的创建&quot;&gt;ListenableFuture的创建&lt;/h2&gt;
+&lt;ul&gt;
+  &lt;li&gt;目标对象（Source）：目标对象实现了真正的业务逻辑，业务逻辑一般用一个接口（Sourceable）定义&lt;/li&gt;
+  &lt;li&gt;代理对象（Proxy）：代理对象实现了和目标对象同样的接口，负责对外提供接口，他接收来自客户的请求&lt;/li&gt;
+  &lt;li&gt;客户对象（Client）：负责请求，并不关心其中的具体实现&lt;/li&gt;
+&lt;/ul&gt;
 
-&lt;p&gt;Guava对齐JDK中的ExecutorService.submit(Runnable)提供了ListeningExecutorService，ListeningExecutorService会在ExecutorService返回Future的地方返回一个ListenableFuture。将一个ExecutorService转换成ListeningExecutorService只需要执行MoreExecutorService.listeningDecorator(ExecutorService)。官方文档中的示例如下：&lt;/p&gt;
+&lt;p&gt;下面是一个静态代理的例子：&lt;/p&gt;
 
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;ListeningExecutorService&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;service&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MoreExecutors&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;listeningDecorator&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Executors&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;newFixedThreadPool&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;10&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;));&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;ListenableFuture&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Explosion&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;explosion&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;service&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;submit&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Callable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Explosion&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-  &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Explosion&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;call&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;pushBigRedButton&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-  &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;span class=&quot;o&quot;&gt;});&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;Futures&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;addCallback&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;explosion&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;FutureCallback&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Explosion&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-  &lt;span class=&quot;c1&quot;&gt;// we want this handler to run immediately after we push the big red button!&lt;/span&gt;
-  &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;onSuccess&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Explosion&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;explosion&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;walkAwayFrom&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;explosion&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-  &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-  &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;onFailure&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Throwable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;thrown&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;battleArchNemesis&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;// escaped the explosion!&lt;/span&gt;
-  &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;span class=&quot;o&quot;&gt;});&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;如果你此前使用的FutureTask，Guava提供ListenableFutureTask.create(Callable&lt;V&gt;) 和 ListenableFutureTask.create(Runnable, V)。但与JDK中的FutureTask不同，Guava并不建议直接继承ListenableFutureTask类。&lt;/V&gt;&lt;/p&gt;
-
-&lt;p&gt;假如你希望直接设置Future的结果而非通过一系列计算得出结果，可以继承AbstractFuture实现，或者直接使用SettableFuture。&lt;/p&gt;
-
-&lt;p&gt;如果你不得不从JDK的Future转换成ListenableFuture，唯一的方式是使用JdkFutureAdapters.listenInPoolThread(Future)，但是这种方式会更重一些，因为它会针对每一个添加的Listener创建新的线程来与其绑定，所以如果可能的话，Guava强烈建议通过改造代码直接返回ListenableFuture。&lt;/p&gt;
-
-&lt;h2 id=&quot;listenablefuture的使用&quot;&gt;ListenableFuture的使用&lt;/h2&gt;
-
-&lt;p&gt;推荐使用ListenableFuture的最重要的原因就是通过ListenableFuture，可以进行一系列复杂的链式异步操作。官方文档的示例如下：&lt;/p&gt;
-
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;ListenableFuture&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;RowKey&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;rowKeyFuture&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;indexService&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;lookUp&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;query&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;AsyncFunction&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;RowKey&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;QueryResult&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;queryFunction&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;
-  &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;AsyncFunction&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;RowKey&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;QueryResult&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ListenableFuture&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;QueryResult&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;apply&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;RowKey&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;rowKey&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-      &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dataService&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;read&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;rowKey&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;interface&lt;/span&gt; &lt;span class=&quot;nc&quot;&gt;Sourceable&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;//需要代理的接口&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;//接口实现类,操作&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;class&lt;/span&gt; &lt;span class=&quot;nc&quot;&gt;Source&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;implements&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nd&quot;&gt;@Override&lt;/span&gt;
+        &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;add&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;doing&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
     &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-  &lt;span class=&quot;o&quot;&gt;};&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;ListenableFuture&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;QueryResult&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;queryFuture&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;Futures&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;transformAsync&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;rowKeyFuture&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;queryFunction&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;queryExecutor&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;//静态代理类的实现.代码已经实现好了.&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;class&lt;/span&gt; &lt;span class=&quot;nc&quot;&gt;Proxy&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;implements&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;Proxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+        &lt;span class=&quot;nd&quot;&gt;@Override&lt;/span&gt;
+        &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;c1&quot;&gt;//执行一些操作&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;begin &quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;end &quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;err&quot;&gt;​&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
-&lt;p&gt;ListenableFuture可以支持很多Future不支持的操作，每个Listener可以和不同的Executor绑定，一个ListenableFuture可以有多个操作等待。&lt;/p&gt;
+&lt;p&gt;现在如果我们想对这个方法做一层静态的代理，这儿实现了一个简单的代理类实现了Sourceable，构造函数传入的参数是真正的实现类，但是在调用这个代理类的method方法的时候我们在实现方法执行的前后分别做了一些输出日志的操作。&lt;/p&gt;
 
-&lt;p&gt;ListenableFuture自身的语义很好的表现了fan-out操作（当一个操作开始的时候其他的一些操作也会尽快开始执行），它在完成时会触发所有的回调逻辑。要支持fan-in操作，只需要少许额外的工作，具体参考Futures.allAsList(ListenableFuture…)&lt;/p&gt;
+&lt;p&gt;观察代码可以发现每一个代理类只能为一个接口服务，一个Proxy 类实现了一个Sourceable接口，那么我要是有多个接口，是不是要写多个Proxy类与之对应。这样一来程序开发中必然会产生过多的代理，而且，所有的代理操作除了调用的方法不一样之外，其他的操作都一样，则此时肯定是重复代码。解决这一问题最好的做法是可以通过一个代理类完成全部的代理功能，那就是动态代理出现的原因。&lt;/p&gt;
 
-&lt;table&gt;
-  &lt;thead&gt;
-    &lt;tr&gt;
-      &lt;th&gt;方法&lt;/th&gt;
-      &lt;th&gt;说明&lt;/th&gt;
-    &lt;/tr&gt;
-  &lt;/thead&gt;
-  &lt;tbody&gt;
-    &lt;tr&gt;
-      &lt;td&gt;transformAsync(ListenableFuture&lt;a&gt;, AsyncFunction&amp;lt;A, B&amp;gt;, Executor)&lt;/a&gt;&lt;/td&gt;
-      &lt;td&gt;返回一个ListenableFuture，它的结果是给定的AsyncFunction利用给定的ListenableFuture的结果作为参数计算的结果。这个AsyncFunction会通过给定的Executor执行&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;td&gt;transform(ListenableFuture&lt;a&gt;, Function&amp;lt;A, B&amp;gt;, Executor)&lt;/a&gt;&lt;/td&gt;
-      &lt;td&gt;返回一个ListenableFuture，它的结果是给定的Function利用给定的ListenableFuture的结果作为参数计算的结果。这个Function会通过给定的Executor执行&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;td&gt;allAsList(Iterable&amp;lt;ListenableFuture&lt;V&gt;&amp;gt;)&lt;/V&gt;&lt;/td&gt;
-      &lt;td&gt;返回一个ListenableFuture，它的结果是一个包含入参的所有ListenableFuture的结果的List，如果参数中的任意一个ListenableFuture失败或者被取消，这个ListenableFuture就失败或者被取消。&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;td&gt;successfulAsList(Iterable&amp;lt;ListenableFuture&lt;V&gt;&amp;gt;)&lt;/V&gt;&lt;/td&gt;
-      &lt;td&gt;返回一个ListenableFuture，它的结果是一个包含入参的所有ListenableFuture的结果的List，如果参数中的任意一个ListenableFuture失败或者被取消，List中对应的元素为null。&lt;/td&gt;
-    &lt;/tr&gt;
-  &lt;/tbody&gt;
-&lt;/table&gt;</content><author><name></name></author><summary type="html">简介</summary></entry><entry><title type="html">HTTP/2 介绍</title><link href="http://localhost:4000/2019/05/30/HTTP2.html" rel="alternate" type="text/html" title="HTTP/2 介绍" /><published>2019-05-30T00:00:00+08:00</published><updated>2019-05-30T00:00:00+08:00</updated><id>http://localhost:4000/2019/05/30/HTTP2</id><content type="html" xml:base="http://localhost:4000/2019/05/30/HTTP2.html">&lt;h2 id=&quot;概述&quot;&gt;概述&lt;/h2&gt;
+&lt;h2 id=&quot;动态代理&quot;&gt;动态代理&lt;/h2&gt;
+
+&lt;p&gt;动态代理有以下几个特点：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;代理对象不需要实现接口&lt;/li&gt;
+  &lt;li&gt;动态地在内存中构建代理对象，只需要我们指定创建代理对象/目标对象实现的接口的类型&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h3 id=&quot;jdk动态代理&quot;&gt;JDK动态代理&lt;/h3&gt;
+
+&lt;p&gt;jdk中有自带的动态代理的实现方式，具体示例如下：&lt;/p&gt;
+
+&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;class&lt;/span&gt; &lt;span class=&quot;nc&quot;&gt;ProxyFactory&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;implements&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;InvocationHandler&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Class&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;?&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;target&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;real&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;//委托类class&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;ProxyFactory&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Class&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;?&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;target&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;){&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;target&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;target&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;//实际执行类bind&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;bind&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;real&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;){&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;real&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;real&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;//利用JDK提供的Proxy实现动态代理&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt;  &lt;span class=&quot;n&quot;&gt;Proxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;newProxyInstance&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;target&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;getClassLoader&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(),&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Class&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]{&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;target&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;},&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;nd&quot;&gt;@Override&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;invoke&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Method&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;throws&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Throwable&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;//代理环绕&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;begin&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;//执行实际的方法&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;invoke&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;invoke&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;real&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;end&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;invoke&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;main&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;String&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;proxy&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ProxyFactory&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;class&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;).&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;bind&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;Source&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;());&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;proxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;JDK 自带的动态代理中有比较关键的InvocationHandler，InvocationHandler的作用就是负责拦截和处理目标对象的方法调用，它的invoke方法分别传入的是代理对象，本次访问的方法以及本次访问的方法参数，返回结果就是本次调用实际需要返回的结果。我们可以在invoke方法内部根据方法或者参数的不同执行我们的拦截逻辑甚至直接返回不同的结果。&lt;/p&gt;
+
+&lt;p&gt;JDK动态代理的几个特性：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;JDK动态代理只能代理有接口的类,并且是能代理接口方法,不能代理一般的类中的方法&lt;/li&gt;
+  &lt;li&gt;必须传入一个InvocationHandler对象，在InvocationHandler中实现代理逻辑&lt;/li&gt;
+  &lt;li&gt;java.lang.Object类的equals、hashCode、toString也可以被代理&lt;/li&gt;
+  &lt;li&gt;在invoke方法中我们甚至可以不用Method.invoke方法调用实现类就返回。这种方式常常用在RPC框架中,在invoke方法中发起通信调用远端的接口等&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;cglib代理&quot;&gt;cglib代理&lt;/h3&gt;
+
+&lt;p&gt;JDK代理中有一个局限，那就是只能代理实现了接口的目标对象，那对于没有实现接口的对象要如何进行代理呢？这时候就轮到cglib出场了。cglib不同于JDK的实现，采用了继承的方式对目标对象进行代理，示例如下：&lt;/p&gt;
+
+&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;Enhancer&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;enhancer&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Enhancer&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;enhancer&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;setSuperclass&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Souceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;class&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;enhancer&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;setCallback&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MethodInterceptor&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;c1&quot;&gt;//类似InvocationHandler的invoke方法&lt;/span&gt;
+            &lt;span class=&quot;nd&quot;&gt;@Override&lt;/span&gt;
+            &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;intercept&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Method&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;objects&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MethodProxy&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;methodProxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;throws&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Throwable&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;begin&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+                &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;invoke&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;methodProxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;invoke&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Calculator&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;CalculatorImpl&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;objects&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+                &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;end&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+                &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;invoke&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;});&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;proxy&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;enhancer&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;create&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;proxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;cglib中的MethodInterceptor与JDK中的InvocationHandler类似，它的intercept方法中传入了代理对象、方法对象以及对应的方法参数，我们可以在这个intercept方法中实现我们的代理逻辑，MethodProxy对象则是目标对象的引用。&lt;/p&gt;
+
+&lt;p&gt;cglib的几个特性：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;代理的类不能为final,否则报错&lt;/li&gt;
+  &lt;li&gt;目标对象的方法如果为final/static,那么就不会被拦截,即不会执行目标对象额外的业务方法&lt;/li&gt;
+  &lt;li&gt;cglib会默认代理Object中finalize,equals,toString,hashCode,clone等方法。比JDK代理多了finalize和clone。&lt;/li&gt;
+&lt;/ul&gt;</content><author><name></name></author><summary type="html">序</summary></entry><entry><title type="html">HTTP/2 介绍</title><link href="http://localhost:4000/2019/05/30/HTTP2.html" rel="alternate" type="text/html" title="HTTP/2 介绍" /><published>2019-05-30T00:00:00+08:00</published><updated>2019-05-30T00:00:00+08:00</updated><id>http://localhost:4000/2019/05/30/HTTP2</id><content type="html" xml:base="http://localhost:4000/2019/05/30/HTTP2.html">&lt;h2 id=&quot;概述&quot;&gt;概述&lt;/h2&gt;
 
 &lt;p&gt;http/2 即 http 2.0 版本，是目前当前的 http 1.1 版本的优化版本。http/2 通过报头帧压缩、连接复用以及服务端推送来提高网站性能。&lt;/p&gt;
 
@@ -895,137 +1011,86 @@
   &lt;/blockquote&gt;
 &lt;/blockquote&gt;
 
-&lt;p&gt;然而，2012 年夏天，出现了针对 TLS 和 SPDY 压缩算法的“犯罪”安全攻击，此攻击会导致会话被劫持。 于是，zlib 压缩算法被 HPACK 替代，后者经过专门设计，可以解决发现的安全问题、实现起来也更高效和简单，当然，可以对 HTTP 标头元数据进行良好压缩。&lt;/p&gt;</content><author><name></name></author><summary type="html">概述</summary></entry><entry><title type="html">Java中的代理</title><link href="http://localhost:4000/2019/05/30/Java-Proxy.html" rel="alternate" type="text/html" title="Java中的代理" /><published>2019-05-30T00:00:00+08:00</published><updated>2019-05-30T00:00:00+08:00</updated><id>http://localhost:4000/2019/05/30/Java%20Proxy</id><content type="html" xml:base="http://localhost:4000/2019/05/30/Java-Proxy.html">&lt;h2 id=&quot;序&quot;&gt;序&lt;/h2&gt;
+&lt;p&gt;然而，2012 年夏天，出现了针对 TLS 和 SPDY 压缩算法的“犯罪”安全攻击，此攻击会导致会话被劫持。 于是，zlib 压缩算法被 HPACK 替代，后者经过专门设计，可以解决发现的安全问题、实现起来也更高效和简单，当然，可以对 HTTP 标头元数据进行良好压缩。&lt;/p&gt;</content><author><name></name></author><summary type="html">概述</summary></entry><entry><title type="html">Guava ListenableFuture</title><link href="http://localhost:4000/2019/05/30/Guava-ListenableFuture.html" rel="alternate" type="text/html" title="Guava ListenableFuture" /><published>2019-05-30T00:00:00+08:00</published><updated>2019-05-30T00:00:00+08:00</updated><id>http://localhost:4000/2019/05/30/Guava%20ListenableFuture</id><content type="html" xml:base="http://localhost:4000/2019/05/30/Guava-ListenableFuture.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
 
-&lt;p&gt;代理模式是指为一个对象提供另一种访问方式，即通过一个代理对象来访问我们的目标对象，使得我们可以详细地控制访问行为。一般来说代理分为两种：静态代理和动态代理。&lt;/p&gt;
+&lt;p&gt;ListenableFuture继承自java.util.concurrent.Future，旨在降低异步开发的难度。&lt;/p&gt;
 
-&lt;h2 id=&quot;静态代理&quot;&gt;静态代理&lt;/h2&gt;
+&lt;p&gt;JDK中定义的Future表示一个异步操作，ListenableFuture在Future的基础上增加了一个addListener方法，可以在计算完成时触发回调逻辑，通过这样的扩展可以支持更多原生Future不支持的逻辑。ListenableFuture中新增的方法addListener(Runnable, Executor)，可以在指定Future上注册一个Runnable对象，这个Runnable会在Future完成的时候通过指定的Executor执行。&lt;/p&gt;
 
-&lt;p&gt;静态代理中通常有以下三个对象：&lt;/p&gt;
+&lt;p&gt;此外Guava还提供了一个方法用于在Future上注册回调，使用Futures类：Futures.addCallback(ListenableFuture&lt;V&gt;, FutureCallback&lt;V&gt;, Executor)，或者是Futures.addCallback(ListenableFuture&lt;V&gt;, FutureCallback&lt;V&gt;)。这里需要注意的是如果在注册callback时没有指定Executor，那么注册的callback默认会在当前线程执行，所以对于包含重量级逻辑的callback，最好在注册时指定Executor。&lt;/V&gt;&lt;/V&gt;&lt;/V&gt;&lt;/V&gt;&lt;/p&gt;
 
-&lt;ul&gt;
-  &lt;li&gt;目标对象（Source）：目标对象实现了真正的业务逻辑，业务逻辑一般用一个接口（Sourceable）定义&lt;/li&gt;
-  &lt;li&gt;代理对象（Proxy）：代理对象实现了和目标对象同样的接口，负责对外提供接口，他接收来自客户的请求&lt;/li&gt;
-  &lt;li&gt;客户对象（Client）：负责请求，并不关心其中的具体实现&lt;/li&gt;
-&lt;/ul&gt;
+&lt;h2 id=&quot;listenablefuture的创建&quot;&gt;ListenableFuture的创建&lt;/h2&gt;
 
-&lt;p&gt;下面是一个静态代理的例子：&lt;/p&gt;
+&lt;p&gt;Guava对齐JDK中的ExecutorService.submit(Runnable)提供了ListeningExecutorService，ListeningExecutorService会在ExecutorService返回Future的地方返回一个ListenableFuture。将一个ExecutorService转换成ListeningExecutorService只需要执行MoreExecutorService.listeningDecorator(ExecutorService)。官方文档中的示例如下：&lt;/p&gt;
 
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;interface&lt;/span&gt; &lt;span class=&quot;nc&quot;&gt;Sourceable&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;c1&quot;&gt;//需要代理的接口&lt;/span&gt;
-    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-    &lt;span class=&quot;c1&quot;&gt;//接口实现类,操作&lt;/span&gt;
-    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;class&lt;/span&gt; &lt;span class=&quot;nc&quot;&gt;Source&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;implements&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;nd&quot;&gt;@Override&lt;/span&gt;
-        &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;add&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;doing&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-    &lt;span class=&quot;c1&quot;&gt;//静态代理类的实现.代码已经实现好了.&lt;/span&gt;
-    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;class&lt;/span&gt; &lt;span class=&quot;nc&quot;&gt;Proxy&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;implements&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-        &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;Proxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-        &lt;span class=&quot;nd&quot;&gt;@Override&lt;/span&gt;
-        &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;c1&quot;&gt;//执行一些操作&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;begin &quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;end &quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;err&quot;&gt;​&lt;/span&gt;
-        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;现在如果我们想对这个方法做一层静态的代理，这儿实现了一个简单的代理类实现了Sourceable，构造函数传入的参数是真正的实现类，但是在调用这个代理类的method方法的时候我们在实现方法执行的前后分别做了一些输出日志的操作。&lt;/p&gt;
-
-&lt;p&gt;观察代码可以发现每一个代理类只能为一个接口服务，一个Proxy 类实现了一个Sourceable接口，那么我要是有多个接口，是不是要写多个Proxy类与之对应。这样一来程序开发中必然会产生过多的代理，而且，所有的代理操作除了调用的方法不一样之外，其他的操作都一样，则此时肯定是重复代码。解决这一问题最好的做法是可以通过一个代理类完成全部的代理功能，那就是动态代理出现的原因。&lt;/p&gt;
-
-&lt;h2 id=&quot;动态代理&quot;&gt;动态代理&lt;/h2&gt;
-
-&lt;p&gt;动态代理有以下几个特点：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;代理对象不需要实现接口&lt;/li&gt;
-  &lt;li&gt;动态地在内存中构建代理对象，只需要我们指定创建代理对象/目标对象实现的接口的类型&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h3 id=&quot;jdk动态代理&quot;&gt;JDK动态代理&lt;/h3&gt;
-
-&lt;p&gt;jdk中有自带的动态代理的实现方式，具体示例如下：&lt;/p&gt;
-
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;class&lt;/span&gt; &lt;span class=&quot;nc&quot;&gt;ProxyFactory&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;implements&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;InvocationHandler&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Class&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;?&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;target&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;real&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;c1&quot;&gt;//委托类class&lt;/span&gt;
-    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;ProxyFactory&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Class&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;?&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;target&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;){&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;target&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;target&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-    &lt;span class=&quot;c1&quot;&gt;//实际执行类bind&lt;/span&gt;
-    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;bind&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;real&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;){&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;real&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;real&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-        &lt;span class=&quot;c1&quot;&gt;//利用JDK提供的Proxy实现动态代理&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt;  &lt;span class=&quot;n&quot;&gt;Proxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;newProxyInstance&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;target&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;getClassLoader&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(),&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Class&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]{&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;target&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;},&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-    &lt;span class=&quot;nd&quot;&gt;@Override&lt;/span&gt;
-    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;invoke&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Method&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;throws&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Throwable&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;c1&quot;&gt;//代理环绕&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;begin&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;c1&quot;&gt;//执行实际的方法&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;invoke&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;invoke&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;real&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;end&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;invoke&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-
-    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;main&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;String&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;args&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;proxy&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ProxyFactory&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;class&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;).&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;bind&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;Source&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;());&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;proxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;JDK 自带的动态代理中有比较关键的InvocationHandler，InvocationHandler的作用就是负责拦截和处理目标对象的方法调用，它的invoke方法分别传入的是代理对象，本次访问的方法以及本次访问的方法参数，返回结果就是本次调用实际需要返回的结果。我们可以在invoke方法内部根据方法或者参数的不同执行我们的拦截逻辑甚至直接返回不同的结果。&lt;/p&gt;
-
-&lt;p&gt;JDK动态代理的几个特性：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;JDK动态代理只能代理有接口的类,并且是能代理接口方法,不能代理一般的类中的方法&lt;/li&gt;
-  &lt;li&gt;必须传入一个InvocationHandler对象，在InvocationHandler中实现代理逻辑&lt;/li&gt;
-  &lt;li&gt;java.lang.Object类的equals、hashCode、toString也可以被代理&lt;/li&gt;
-  &lt;li&gt;在invoke方法中我们甚至可以不用Method.invoke方法调用实现类就返回。这种方式常常用在RPC框架中,在invoke方法中发起通信调用远端的接口等&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h3 id=&quot;cglib代理&quot;&gt;cglib代理&lt;/h3&gt;
-
-&lt;p&gt;JDK代理中有一个局限，那就是只能代理实现了接口的目标对象，那对于没有实现接口的对象要如何进行代理呢？这时候就轮到cglib出场了。cglib不同于JDK的实现，采用了继承的方式对目标对象进行代理，示例如下：&lt;/p&gt;
-
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;Enhancer&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;enhancer&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Enhancer&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;enhancer&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;setSuperclass&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Souceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;class&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;enhancer&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;setCallback&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MethodInterceptor&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;c1&quot;&gt;//类似InvocationHandler的invoke方法&lt;/span&gt;
-            &lt;span class=&quot;nd&quot;&gt;@Override&lt;/span&gt;
-            &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;intercept&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Method&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;objects&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MethodProxy&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;methodProxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;throws&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Throwable&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-                &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;begin&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-                &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;invoke&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;methodProxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;invoke&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Calculator&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;CalculatorImpl&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;objects&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-                &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;end&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-                &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;invoke&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;ListeningExecutorService&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;service&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MoreExecutors&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;listeningDecorator&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Executors&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;newFixedThreadPool&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;10&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;));&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;ListenableFuture&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Explosion&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;explosion&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;service&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;submit&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Callable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Explosion&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+  &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Explosion&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;call&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;pushBigRedButton&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
 &lt;span class=&quot;o&quot;&gt;});&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;proxy&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Sourceable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;enhancer&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;create&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;proxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;method&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;Futures&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;addCallback&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;explosion&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;FutureCallback&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Explosion&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+  &lt;span class=&quot;c1&quot;&gt;// we want this handler to run immediately after we push the big red button!&lt;/span&gt;
+  &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;onSuccess&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Explosion&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;explosion&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;walkAwayFrom&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;explosion&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+  &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;onFailure&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Throwable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;thrown&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;battleArchNemesis&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;// escaped the explosion!&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;});&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
-&lt;p&gt;cglib中的MethodInterceptor与JDK中的InvocationHandler类似，它的intercept方法中传入了代理对象、方法对象以及对应的方法参数，我们可以在这个intercept方法中实现我们的代理逻辑，MethodProxy对象则是目标对象的引用。&lt;/p&gt;
+&lt;p&gt;如果你此前使用的FutureTask，Guava提供ListenableFutureTask.create(Callable&lt;V&gt;) 和 ListenableFutureTask.create(Runnable, V)。但与JDK中的FutureTask不同，Guava并不建议直接继承ListenableFutureTask类。&lt;/V&gt;&lt;/p&gt;
 
-&lt;p&gt;cglib的几个特性：&lt;/p&gt;
+&lt;p&gt;假如你希望直接设置Future的结果而非通过一系列计算得出结果，可以继承AbstractFuture实现，或者直接使用SettableFuture。&lt;/p&gt;
 
-&lt;ul&gt;
-  &lt;li&gt;代理的类不能为final,否则报错&lt;/li&gt;
-  &lt;li&gt;目标对象的方法如果为final/static,那么就不会被拦截,即不会执行目标对象额外的业务方法&lt;/li&gt;
-  &lt;li&gt;cglib会默认代理Object中finalize,equals,toString,hashCode,clone等方法。比JDK代理多了finalize和clone。&lt;/li&gt;
-&lt;/ul&gt;</content><author><name></name></author><summary type="html">序</summary></entry><entry><title type="html">Netty源码之ByteBuf</title><link href="http://localhost:4000/netty/2019/05/30/Netty-ByteBuf.html" rel="alternate" type="text/html" title="Netty源码之ByteBuf" /><published>2019-05-30T00:00:00+08:00</published><updated>2019-05-30T00:00:00+08:00</updated><id>http://localhost:4000/netty/2019/05/30/Netty%20ByteBuf</id><content type="html" xml:base="http://localhost:4000/netty/2019/05/30/Netty-ByteBuf.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
+&lt;p&gt;如果你不得不从JDK的Future转换成ListenableFuture，唯一的方式是使用JdkFutureAdapters.listenInPoolThread(Future)，但是这种方式会更重一些，因为它会针对每一个添加的Listener创建新的线程来与其绑定，所以如果可能的话，Guava强烈建议通过改造代码直接返回ListenableFuture。&lt;/p&gt;
+
+&lt;h2 id=&quot;listenablefuture的使用&quot;&gt;ListenableFuture的使用&lt;/h2&gt;
+
+&lt;p&gt;推荐使用ListenableFuture的最重要的原因就是通过ListenableFuture，可以进行一系列复杂的链式异步操作。官方文档的示例如下：&lt;/p&gt;
+
+&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;ListenableFuture&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;RowKey&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;rowKeyFuture&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;indexService&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;lookUp&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;query&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;AsyncFunction&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;RowKey&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;QueryResult&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;queryFunction&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;
+  &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;AsyncFunction&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;RowKey&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;QueryResult&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ListenableFuture&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;QueryResult&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;apply&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;RowKey&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;rowKey&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+      &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dataService&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;read&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;rowKey&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;};&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;ListenableFuture&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;QueryResult&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;queryFuture&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;Futures&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;transformAsync&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;rowKeyFuture&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;queryFunction&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;queryExecutor&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;ListenableFuture可以支持很多Future不支持的操作，每个Listener可以和不同的Executor绑定，一个ListenableFuture可以有多个操作等待。&lt;/p&gt;
+
+&lt;p&gt;ListenableFuture自身的语义很好的表现了fan-out操作（当一个操作开始的时候其他的一些操作也会尽快开始执行），它在完成时会触发所有的回调逻辑。要支持fan-in操作，只需要少许额外的工作，具体参考Futures.allAsList(ListenableFuture…)&lt;/p&gt;
+
+&lt;table&gt;
+  &lt;thead&gt;
+    &lt;tr&gt;
+      &lt;th&gt;方法&lt;/th&gt;
+      &lt;th&gt;说明&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;td&gt;transformAsync(ListenableFuture&lt;a&gt;, AsyncFunction&amp;lt;A, B&amp;gt;, Executor)&lt;/a&gt;&lt;/td&gt;
+      &lt;td&gt;返回一个ListenableFuture，它的结果是给定的AsyncFunction利用给定的ListenableFuture的结果作为参数计算的结果。这个AsyncFunction会通过给定的Executor执行&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;transform(ListenableFuture&lt;a&gt;, Function&amp;lt;A, B&amp;gt;, Executor)&lt;/a&gt;&lt;/td&gt;
+      &lt;td&gt;返回一个ListenableFuture，它的结果是给定的Function利用给定的ListenableFuture的结果作为参数计算的结果。这个Function会通过给定的Executor执行&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;allAsList(Iterable&amp;lt;ListenableFuture&lt;V&gt;&amp;gt;)&lt;/V&gt;&lt;/td&gt;
+      &lt;td&gt;返回一个ListenableFuture，它的结果是一个包含入参的所有ListenableFuture的结果的List，如果参数中的任意一个ListenableFuture失败或者被取消，这个ListenableFuture就失败或者被取消。&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;successfulAsList(Iterable&amp;lt;ListenableFuture&lt;V&gt;&amp;gt;)&lt;/V&gt;&lt;/td&gt;
+      &lt;td&gt;返回一个ListenableFuture，它的结果是一个包含入参的所有ListenableFuture的结果的List，如果参数中的任意一个ListenableFuture失败或者被取消，List中对应的元素为null。&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;</content><author><name></name></author><summary type="html">简介</summary></entry><entry><title type="html">Netty源码之ByteBuf</title><link href="http://localhost:4000/netty/2019/05/30/Netty-ByteBuf.html" rel="alternate" type="text/html" title="Netty源码之ByteBuf" /><published>2019-05-30T00:00:00+08:00</published><updated>2019-05-30T00:00:00+08:00</updated><id>http://localhost:4000/netty/2019/05/30/Netty%20ByteBuf</id><content type="html" xml:base="http://localhost:4000/netty/2019/05/30/Netty-ByteBuf.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
 
 &lt;p&gt;ByteBuf类似于JDK里的ByteBuffer，但JDK里的ByteBuffer有几个局限性，如固定长度、需要手动flip等，所以Netty提供了类似ByteBuffer的实现ByteBuf。&lt;/p&gt;
 
@@ -1269,62 +1334,4 @@ ensureWritable的实现如下：&lt;/p&gt;
 
 &lt;h3 id=&quot;其他子类&quot;&gt;其他子类&lt;/h3&gt;
 
-&lt;p&gt;AbstractByteBuf有很多具体实现，比如UnpooledHeapByteBuf，它基于堆内存来分配缓冲区，其内部是一个byte数组，它的扩容和复制都使用是的System.arrayCopy方法，与UnpooledHeapByteBuf对应的还有UnpooledDirectByteBuf，它使用直接内存做缓冲区。此外还有基于对象池的PooledHeapByteBuf和PooledDirectByteBuf，它们的创建和销毁策略有所不同，其他的功能都是等同的。&lt;/p&gt;</content><author><name></name></author><category term="[&quot;netty&quot;]" /><summary type="html">简介</summary></entry><entry><title type="html">Disruptor介绍</title><link href="http://localhost:4000/2019/05/27/Disruptor.html" rel="alternate" type="text/html" title="Disruptor介绍" /><published>2019-05-27T00:00:00+08:00</published><updated>2019-05-27T00:00:00+08:00</updated><id>http://localhost:4000/2019/05/27/Disruptor</id><content type="html" xml:base="http://localhost:4000/2019/05/27/Disruptor.html">&lt;p&gt;大部分内容翻译自Disruptor在github上的&lt;a href=&quot;https://github.com/LMAX-Exchange/disruptor/wiki&quot;&gt;wiki&lt;/a&gt;&lt;/p&gt;
-
-&lt;h2 id=&quot;介绍&quot;&gt;介绍&lt;/h2&gt;
-
-&lt;p&gt;LMAX是一种新型零售金融交易平台，它能够以很低的延迟产生大量交易。这个系统是建立在JVM平台上，其核心是一个业务逻辑处理器，它能够在一个线程里每秒处理6百万订单。业务逻辑处理器完全是运行在内存中，使用事件源驱动方式。业务逻辑处理器的核心是Disruptor。&lt;/p&gt;
-
-&lt;p&gt;在介绍Disruptor的时候，通常会将其和 java 里的队列进行对比。Disruptor和队列的目的大致类似，Disruptor的目的是在线程间传递数据（或者消息）。而Disruptor和队列相比主要有以下几点区别：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;消息可以广播到多个消费者，即一个消息可以被多个消费者处理&lt;/li&gt;
-  &lt;li&gt;为消息提前分配内存&lt;/li&gt;
-  &lt;li&gt;一定条件下的无锁化&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&quot;几个核心概念&quot;&gt;几个核心概念&lt;/h2&gt;
-
-&lt;p&gt;在介绍Disruptor的运行方式以前，有几个比较重要的概念需要先介绍一下：&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;环形缓冲区（Ring Buffer）&lt;/strong&gt;：环形缓冲区是Disruptor里最重要的一个概念，它负责数据（或者消息）的存储和更新。同时环形缓冲区同样可以被用户使用另外的数据结构来代替。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;序列号（Sequence）&lt;/strong&gt;：Disruptor使用序列号来标识每个消费者当前的消费的状态。每个消费者都持有一个序列号，Disruptor本身也持有序列号。Disruptor中大部分的并发逻辑都依赖于序列号的变更。Disruptor中的序列号与java中的AtomicLong的实现类似，唯一的区别在于Disruptor中的序列号的实现多了一部分避免伪共享的逻辑以期望提升性能。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;序列器（Sequencer）&lt;/strong&gt;：Sequencer是Disruptor的真正核心，它的作用是整合所有的序列号，确定消息生产或者消费的具体顺序，它是Disruptor的高效性和准确性的基石。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;序列屏障（Sequence Barrier）&lt;/strong&gt;：序列号屏障是由序列器创建的对象，它包含了当前生产者的序列号和消费者的序列号的引用，它的作用是确定一个消息何时可以被消费者消费。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;等待策略（Wait Strategy）&lt;/strong&gt;：等待策略决定了消费者在等待可用消息时的行为，可选的策略包括让出CPU时间、自旋等等。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;消息（Event）&lt;/strong&gt;：消息即生产者和消费者之间传递的对象，在Disruptor中没有具体实现，由用户自己实现。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;消息处理器（EventProcessor&lt;/strong&gt;）：消息处理器是一个事件循环（Event Loop），它持有消费者的序列号，主要负责从Disruptor获取可用的消息进行处理。Disruptor提供了一个BatchEventProcessor，用于批量获取消息然后调用用户提供的消息逻辑处理器（EventHandler）进行处理。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;消息逻辑处理器（EventHandler）&lt;/strong&gt;：Disruptor定义的接口，实现了消息的消费逻辑，由用户自己实现。&lt;/p&gt;
-
-&lt;h2 id=&quot;lmax使用disruptor的示意图&quot;&gt;LMAX使用Disruptor的示意图&lt;/h2&gt;
-
-&lt;p&gt;&lt;img src=&quot;/img/disruptor_01.png&quot; alt=&quot;img&quot; /&gt;&lt;/p&gt;
-
-&lt;h2 id=&quot;消息多播&quot;&gt;消息多播&lt;/h2&gt;
-
-&lt;p&gt;消息多播是Disruptor与队列的一个主要的区别。当一个Disruptor实例被多个消费者监听时，所有的消息都会被传递给每一个处于监听状态的消费者，而在队列中一份数据只会被传递给一个消费者。这样设计的目的是方便在同一份数据上进行多种并行的操作。在LMAX的实际运用中，一份数据上会执行三个操作：日志（将数据写入持久性存储的日志文件中）、备份（将数据发送到另一台机器以实现冗余备份）以及真正的业务逻辑。Disruptor通过Executor风格的事件处理方式来并行处理事件来达到扩展性，同样的并行处理逻辑也可以通过WorkerPool来实现，但Disruptor并不推荐这种方式，因为WorkerPool的实现方式并不高效。&lt;/p&gt;
-
-&lt;p&gt;在LMAX使用Disruptor的示意图可以看到，一共有三个EventHandler，而每一个EventH都获得了所有的可用的消息，而他们各自的逻辑都是并行执行的。&lt;/p&gt;
-
-&lt;h2 id=&quot;消费者间的相互依赖&quot;&gt;消费者间的相互依赖&lt;/h2&gt;
-
-&lt;p&gt;为了支持真正的并行处理，Disruptor必须支持消费者之间的相互协调。比如上述的例子当中，真正的业务逻辑实际上必须等待日志逻辑和备份逻辑完成之后才能开始。在Disruptor里叫做门控（Gating），在Disruptor中门控主要发生在两个地方：一个是确保生产者不会覆盖环形队列上尚未被消费的逻辑，这个功能通过在RingBuffer上调用addGatingComsumer方法实现；另一个就是上面的例子里说到的情况，这个功能通过构建一个包含前两个消费者的序列号的序列屏障来实现。&lt;/p&gt;
-
-&lt;p&gt;以上图为例，ApplicationConsumer依赖于ReplicationConsumer和JournalConsumer，这个依赖关系存放在ApplicationConsumer持有的序列屏障当中。ReplicationConsumer和JournalConsumer可以并行处理缓冲区里的消息。同时序列器（Sequencer）与消费者中的下游消费者的关系也值得注意，序列器的另一个作用就是避免环形缓冲区重叠，要达到这个目的，必须确保序列器的序号减去任意一个消费者的序列号的差值不超过环形队列的容量。而消费者间的依赖关系还有另一个有趣的作用，我们可以通过依赖关系来优化序列器的等待策略，即序列器不需要关注每个消费者，而只需关注消费者依赖树中的叶子节点的序列号即可。&lt;/p&gt;
-
-&lt;h2 id=&quot;消息的预分配&quot;&gt;消息的预分配&lt;/h2&gt;
-
-&lt;p&gt;Disruptor的一个目标就是追求低延迟。而为了追求低延迟，就需要尽可能减少甚至避免内存的分配。在基于java的系统中，就是要尽量减少垃圾回收时间(即使在低延迟的C/C++系统中，由于存在于内存分配器上的争用，频繁的内存分配也会导致问题的）。&lt;/p&gt;
-
-&lt;p&gt;在Disruptor中，用户可以预先分配用于存储消息的内存空间。Disruptor在构造环形缓冲区是会创建若干个默认对象来将缓冲区填满，生产者在生产消息时可以从缓冲区中指定位置上存放的对象并对其进行修改。Disruptor会确保在正确使用的情况下，这些操作都是并发安全的。&lt;/p&gt;
-
-&lt;h2 id=&quot;一定条件下的无锁化&quot;&gt;一定条件下的无锁化&lt;/h2&gt;
-
-&lt;p&gt;追求低延迟所带来的另一个特性就是Disruptor内部的大量无锁化逻辑。所有变量的内存可见性和正确性都通过内存屏障（volatile）和CAS（compare-and-swap ）算法实现。Disruptor中唯一一处用到锁的逻辑就是在BlockingWaitStrategy的实现当中。这样实现的唯一目的是在于能通过使用Condition类让消费者线程可以在等待过程中主动挂起，它适用于CPU资源比较紧张的环境。许多追求低延迟的系统会采用忙等的策略来避免使用Condition类可能带来的抖动。忙等的策略是指消费者采用忙自旋的方式等待可用消息，避免因线程切换带来的延迟。但是在某些情况下忙等策略反而会导致性能下降，特别是在CPU资源紧张的环境，例如在虚拟机上运行的webserver。&lt;/p&gt;</content><author><name></name></author><summary type="html">大部分内容翻译自Disruptor在github上的wiki</summary></entry></feed>
+&lt;p&gt;AbstractByteBuf有很多具体实现，比如UnpooledHeapByteBuf，它基于堆内存来分配缓冲区，其内部是一个byte数组，它的扩容和复制都使用是的System.arrayCopy方法，与UnpooledHeapByteBuf对应的还有UnpooledDirectByteBuf，它使用直接内存做缓冲区。此外还有基于对象池的PooledHeapByteBuf和PooledDirectByteBuf，它们的创建和销毁策略有所不同，其他的功能都是等同的。&lt;/p&gt;</content><author><name></name></author><category term="[&quot;netty&quot;]" /><summary type="html">简介</summary></entry></feed>
