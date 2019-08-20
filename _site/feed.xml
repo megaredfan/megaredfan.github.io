@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-08-18T22:38:05+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">Linux磁盘缓存机制</title><link href="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html" rel="alternate" type="text/html" title="Linux磁盘缓存机制" /><published>2019-08-18T00:00:00+08:00</published><updated>2019-08-18T00:00:00+08:00</updated><id>http://localhost:4000/2019/08/18/Linux%20Disk%20Cache</id><content type="html" xml:base="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-08-20T16:52:24+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">Linux磁盘缓存机制</title><link href="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html" rel="alternate" type="text/html" title="Linux磁盘缓存机制" /><published>2019-08-18T00:00:00+08:00</published><updated>2019-08-18T00:00:00+08:00</updated><id>http://localhost:4000/2019/08/18/Linux%20Disk%20Cache</id><content type="html" xml:base="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
 
 &lt;p&gt;最近遇到了一起跟磁盘IO相关的线上故障，借此总结一下之前不太了解的Linux磁盘缓存相关的知识。&lt;/p&gt;
 
@@ -14,7 +14,7 @@
 
 &lt;h2 id=&quot;页缓存&quot;&gt;页缓存&lt;/h2&gt;
 
-&lt;p&gt;Linux系统中为了减少对磁盘的IO操作，会将打开的磁盘内容进行缓存，而缓存的地方则是物理内存，进而将对磁盘的访问转换成对内存的访问，有效提高程序的速度。Linux的缓存方式是利用物理内存缓存磁盘上的内容，成为页缓存（page cache）。&lt;/p&gt;
+&lt;p&gt;Linux系统中为了减少对磁盘的IO操作，会将打开的磁盘内容进行缓存，而缓存的地方则是物理内存，进而将对磁盘的访问转换成对内存的访问，有效提高程序的速度。Linux的缓存方式是利用物理内存缓存磁盘上的内容，称为页缓存（page cache）。&lt;/p&gt;
 
 &lt;p&gt;页缓存是由内存中的物理页面组成的，其内容对应磁盘上的物理块。页缓存的大小会根据系统的内存空闲大小进行动态调整，它可以通过占用内存以扩张大小，也可以自我收缩以缓解内存使用压力。&lt;/p&gt;
 

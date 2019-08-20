@@ -15,7 +15,7 @@
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2019-08-18T00:00:00+08:00" />
 <script type="application/ld+json">
-{"mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/08/18/Linux-Disk-Cache.html"},"url":"http://localhost:4000/2019/08/18/Linux-Disk-Cache.html","headline":"Linux磁盘缓存机制","dateModified":"2019-08-18T00:00:00+08:00","datePublished":"2019-08-18T00:00:00+08:00","description":"前言","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"前言","@type":"BlogPosting","url":"http://localhost:4000/2019/08/18/Linux-Disk-Cache.html","headline":"Linux磁盘缓存机制","dateModified":"2019-08-18T00:00:00+08:00","datePublished":"2019-08-18T00:00:00+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/08/18/Linux-Disk-Cache.html"},"@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 <link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
 <body><header class="site-header" role="banner">
@@ -61,7 +61,7 @@
 
 <h2 id="页缓存">页缓存</h2>
 
-<p>Linux系统中为了减少对磁盘的IO操作，会将打开的磁盘内容进行缓存，而缓存的地方则是物理内存，进而将对磁盘的访问转换成对内存的访问，有效提高程序的速度。Linux的缓存方式是利用物理内存缓存磁盘上的内容，成为页缓存（page cache）。</p>
+<p>Linux系统中为了减少对磁盘的IO操作，会将打开的磁盘内容进行缓存，而缓存的地方则是物理内存，进而将对磁盘的访问转换成对内存的访问，有效提高程序的速度。Linux的缓存方式是利用物理内存缓存磁盘上的内容，称为页缓存（page cache）。</p>
 
 <p>页缓存是由内存中的物理页面组成的，其内容对应磁盘上的物理块。页缓存的大小会根据系统的内存空闲大小进行动态调整，它可以通过占用内存以扩张大小，也可以自我收缩以缓解内存使用压力。</p>
 
