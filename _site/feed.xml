@@ -1,4 +1,51 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-08-20T16:52:24+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">Linux磁盘缓存机制</title><link href="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html" rel="alternate" type="text/html" title="Linux磁盘缓存机制" /><published>2019-08-18T00:00:00+08:00</published><updated>2019-08-18T00:00:00+08:00</updated><id>http://localhost:4000/2019/08/18/Linux%20Disk%20Cache</id><content type="html" xml:base="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-09-02T20:22:31+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">quatrz</title><link href="http://localhost:4000/2019/09/01/Schedule-Task.html" rel="alternate" type="text/html" title="quatrz" /><published>2019-09-01T00:00:00+08:00</published><updated>2019-09-01T00:00:00+08:00</updated><id>http://localhost:4000/2019/09/01/Schedule%20Task</id><content type="html" xml:base="http://localhost:4000/2019/09/01/Schedule-Task.html">&lt;h2 id=&quot;quartz简介&quot;&gt;quartz简介&lt;/h2&gt;
+
+&lt;p&gt;quartz是一个基于java的开源的任务调度框架。&lt;/p&gt;
+
+&lt;h2 id=&quot;quatrz-api&quot;&gt;quatrz API&lt;/h2&gt;
+
+&lt;h3 id=&quot;scheduler&quot;&gt;Scheduler&lt;/h3&gt;
+
+&lt;p&gt;一个Scheduler通过SchedulerFactory创建和销毁。Scheduler提供对Job和Trigger的创建、销毁、暂停等一切调度相关的操作。要启动一个Scheduler，需要显式地调用它的start方法。&lt;/p&gt;
+
+&lt;h3 id=&quot;job&quot;&gt;Job&lt;/h3&gt;
+
+&lt;p&gt;Job是实际的任务执行逻辑的接口，它只有一个方法execute：&lt;/p&gt;
+
+&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;  &lt;span class=&quot;kn&quot;&gt;package&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;org&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;quartz&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;interface&lt;/span&gt; &lt;span class=&quot;nc&quot;&gt;Job&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;execute&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;JobExecutionContext&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;context&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+      &lt;span class=&quot;kd&quot;&gt;throws&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;JobExecutionException&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+  &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;当一个Job被触发时，Scheduler会重新创建一个Job，然后通过一个worker线程执行Job的execute方法，所以实际的Job实现类中无法维护状态字段。JobExecutionContext包含了一些“运行时”的信息，比如触发Job的Scheduler、触发的Trigger、Job对应的JobDetail等等。JobDetail是在创建Job时构建的包含Job的各种详细信息的对象，其中还包括一个JobDataMap的对象，JobDataMap中存储了Job的各种状态信息。&lt;/p&gt;
+
+&lt;h3 id=&quot;trigger&quot;&gt;Trigger&lt;/h3&gt;
+
+&lt;p&gt;Trigger的作用就是触发Job的执行，其中包含了触发时间、触发周期等相关信息。Trigger也有对应的JobDataMap对象，可以用于向Job传递某些参数。Trigger有不同的实现类型，比如SimpleTrigger和CronTrigger。SimpleTrigger的触发类似Java中的Schedule线程池，可以支持单次执行和定时重复执行等；CronTrigger则支持通过cron表达式指定触发时机。&lt;/p&gt;
+
+&lt;p&gt;Trigger包含优先级的概念，当有不同的Trigger在同一时间触发时，quartz会根据其优先级决定触发的顺序，因为在资源不足的情况下，&lt;/p&gt;
+
+&lt;h3 id=&quot;将job和trigger定义分开的原因&quot;&gt;将Job和Trigger定义分开的原因&lt;/h3&gt;
+
+&lt;p&gt;第一个原因，Job和Trigger可以独立存储，并支持多对多的关联，减少重复定义。第二个原因是这样可以降低耦合程度，可以方便后续对Job或者Trigger的编辑和替换。&lt;/p&gt;
+
+&lt;h3 id=&quot;标识&quot;&gt;标识&lt;/h3&gt;
+
+&lt;p&gt;Job和Triiger都有自己的身份标识，身份标识由name和group两部分组成，并规定group+name的组合必须保证在Scheduler范围内唯一。&lt;/p&gt;
+
+&lt;h3 id=&quot;jobdatamap&quot;&gt;JobDataMap&lt;/h3&gt;
+
+&lt;p&gt;每个JobDetail和Trigger都有与其对应的JobDataMap。用户可以在定义JobDetail和Trigger时传入指定的key-value，Job在执行时就可以从JobExecutionContext中获取对应的key-value。此外quartz还支持将JobDataMap中的key-value与Job的属性字段对应起来，只要Job实现类中定义了与JobDataMap中key-value同名的字段，quartz就会通过setter方法将其设置到创建出来的Job实例中。&lt;/p&gt;
+
+&lt;p&gt;quartz还支持Job的持久化，所以在选择要将什么数据存到JobDataMap时要考虑结构变化带来的序列化兼容问题。在Job实现类上加上@PersistJobDataAfterExecution就可以使quartz在任务执行后将JobDataMap更新。@PersistJobDataAfterExecution通常建议和@DisallowConcurrentExecution配合使用，后者会通知quartz不允许并发执行任务，以避免状态同步问题。&lt;/p&gt;
+
+&lt;h3 id=&quot;triggerlistener-和-joblistener&quot;&gt;TriggerListener 和 JobListener&lt;/h3&gt;
+
+&lt;p&gt;quartz提供TriggerLisenter和JobListener，可以在任务触发时获得通知甚至是阻止任务执行。&lt;/p&gt;</content><author><name></name></author><summary type="html">quartz简介</summary></entry><entry><title type="html">Linux磁盘缓存机制</title><link href="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html" rel="alternate" type="text/html" title="Linux磁盘缓存机制" /><published>2019-08-18T00:00:00+08:00</published><updated>2019-08-18T00:00:00+08:00</updated><id>http://localhost:4000/2019/08/18/Linux%20Disk%20Cache</id><content type="html" xml:base="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
 
 &lt;p&gt;最近遇到了一起跟磁盘IO相关的线上故障，借此总结一下之前不太了解的Linux磁盘缓存相关的知识。&lt;/p&gt;
 
@@ -1090,248 +1137,4 @@
       &lt;td&gt;返回一个ListenableFuture，它的结果是一个包含入参的所有ListenableFuture的结果的List，如果参数中的任意一个ListenableFuture失败或者被取消，List中对应的元素为null。&lt;/td&gt;
     &lt;/tr&gt;
   &lt;/tbody&gt;
-&lt;/table&gt;</content><author><name></name></author><summary type="html">简介</summary></entry><entry><title type="html">Netty源码之ByteBuf</title><link href="http://localhost:4000/netty/2019/05/30/Netty-ByteBuf.html" rel="alternate" type="text/html" title="Netty源码之ByteBuf" /><published>2019-05-30T00:00:00+08:00</published><updated>2019-05-30T00:00:00+08:00</updated><id>http://localhost:4000/netty/2019/05/30/Netty%20ByteBuf</id><content type="html" xml:base="http://localhost:4000/netty/2019/05/30/Netty-ByteBuf.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
-
-&lt;p&gt;ByteBuf类似于JDK里的ByteBuffer，但JDK里的ByteBuffer有几个局限性，如固定长度、需要手动flip等，所以Netty提供了类似ByteBuffer的实现ByteBuf。&lt;/p&gt;
-
-&lt;p&gt;与ByteBuffer 类似，ByteBuf提供以下几类基本功能：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;Java基础类型、数组、ByteBuf的读写操作&lt;/li&gt;
-  &lt;li&gt;缓冲区自身的copy和slice&lt;/li&gt;
-  &lt;li&gt;设置网络字节序&lt;/li&gt;
-  &lt;li&gt;构造缓冲区实例&lt;/li&gt;
-  &lt;li&gt;操作读写索引&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;ByteBuf与ByteBuffer的不同之处主要有以下两点：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;ByteBuf用两个位置指针来协助读写操作。读操作用readerIndex，写操作用writerIndex。读操作不会修改writerIndex，写操作不会修改readerIndex，简化了操作，避免了忘记flip而导致的异常。&lt;/li&gt;
-  &lt;li&gt;ByteBuf可以动态扩容。在对JDK里的ByteBuffer进行put操作时，通常需要检查剩余空间，如果剩余空间不够时还需要创建新的ByteBuffer，再进行复制操作，然后释放旧的ByteBuffer。而ByteBuf在写操作里包含了检查剩余空间和动态扩容的逻辑，当ByteBuf剩余空间不足时会自动扩充，而使用者无需关心实现细节。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;由于NIO操作中的参数都是ByteBuffer，所以ByteBuf内部包含一个ByteBuffer的引用，用来表示对应的ByteBuffer。&lt;/p&gt;
-
-&lt;h2 id=&quot;部分功能介绍&quot;&gt;部分功能介绍&lt;/h2&gt;
-
-&lt;p&gt;&lt;strong&gt;&lt;em&gt;顺序读(read)&lt;/em&gt;&lt;/strong&gt;
-ByteBuf的read操作类似于ByteBuffer的get操作&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;&lt;em&gt;顺序写(write)&lt;/em&gt;&lt;/strong&gt;
-ByteBuf的write操作类似于ByteBuffer的put操作&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;&lt;em&gt;readerIndex和writerIndex&lt;/em&gt;&lt;/strong&gt;
-ByteBuf提供了两个指针变量用于支持顺序读取和写入操作：readerIndex用于标示读取索引，writerIndex用于标示写入索引，整个缓冲区被这两个索引划分为三个区域，如下图：&lt;/p&gt;
-
-&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;+-------------------+------------------+------------------+
-| discardable bytes |  readable bytes  |  writable bytes  |
-|                   |     &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;CONTENT&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;    |                  |
-+-------------------+------------------+------------------+
-|                   |                  |                  |
-0      &amp;lt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;      readerIndex   &amp;lt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;   writerIndex    &amp;lt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;    capacity
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;在调用ByteBuf的read操作时，从readerIndex处开始读取，readerInex与writerIndex之间的部分为可读缓冲区，writerIndex到capacity之间的部分为可写入缓冲区，0到readerInex之间为已读缓冲区。已读部分可以通过discardBytes来重用以节约内存，但这个操作会触发字节数组的内存复制，所以频繁调用会使性能下降。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;&lt;em&gt;readableBytes和writableBytes&lt;/em&gt;&lt;/strong&gt;
-可读空间是数据实际存放的区域，在ByteBuf上执行read或skip操作进行读取或者跳过指定数目的字节，会使readerIndex增加相应的数目。如果指定的读取长度大于可读字节数，则会抛出InexOutOfBoundsException。readerIndex在ByteBuf初始化时被初始化为0。可写空间是可以存放数据的空闲区域，调用write操作可以向空闲部分写入指定数目的字节，同时writerIndex增加。如果要写入的字节数大于可写字节数，则会抛出InexOutOfBoundsException。创建一个ByteBuf对象时writerIndex被初始化为0，用复制或包装的方式获得一个ByteBuf时，writerIndex为ByteBuf的容量。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;&lt;em&gt;clear操作&lt;/em&gt;&lt;/strong&gt;
-clear操作并不会清除缓冲区的内容，而是设置readerIndex和writerIndex为初始值。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;&lt;em&gt;mark和reset&lt;/em&gt;&lt;/strong&gt;
-ByteBuf内部包含两个缓存的变量markedReaderIndex和markedWriterIndex。通过为这两个变量复制和将这两个变量赋给readerIndex和writerIndex来实现mark和reset操作。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;&lt;em&gt;查找&lt;/em&gt;&lt;/strong&gt;
-ByteBuf提供一系列方法来对缓冲区内字节进行查找或者遍历操作，使用者可以通过实现ByteBufProcesscor来自定义查找条件。
-&lt;img src=&quot;/img/netty_bytebuf_search.png&quot; alt=&quot;查找&quot; /&gt;&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;&lt;em&gt;Derived buffers&lt;/em&gt;&lt;/strong&gt;
-ByteBuf提供一系列方法来创建基于某个ByteBuf的视图或者复制ByteBuf，具体方法如下：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;copy()：返回一个复制的ByteBuf对象，它的读写索引和缓冲区都是独立的，复制操作和对复制产生的对象进行修改不会影响原来的ByteBuf。&lt;/li&gt;
-  &lt;li&gt;copy(int index, int length): 与copy()类似，但可以指定复制的起始位置和要复制的长度。&lt;/li&gt;
-  &lt;li&gt;slice()：返回当前ByteBuf可读部分的一个视图，从readerIndex到writerIndex。返回的ByteBuf对象与原ByteBuf共享内容，但各自独立维护自己的读写索引。该操作不会修改原ByteBuf的读写索引。&lt;/li&gt;
-  &lt;li&gt;slice(int index, int lenth)： 与slice()类似，但可以指定视图的起始位置和长度。&lt;/li&gt;
-  &lt;li&gt;duplicate()：返回当前ByteBuf的一个复制对象，返回结果与原ByteBuf共享内容，但各自独立维护自己的读写索引。当修改复制后的ByteBuf内容之后，原ByteBuf的内容也会改变，两个对象持有同一份内容的引用。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;strong&gt;&lt;em&gt;转换成标准ByteBuffer&lt;/em&gt;&lt;/strong&gt;
-在nio的SocketChannel进行读写的时候，使用的是ByteBuffer作为参数，由于Netty使用ByteBuf来取代ByteBuffer，所以必须支持ByteBuffer和ByteBuffer的互相转换。
-将ByteBuf转换为ByteBuffer有两个方法：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;ByteBuffer nioBuffer()：将当前ByteBuf的可读部分转换成ByteBuffer对象，两者共享同一个缓冲区内容引用。对ByteBuffer的读写不会影响ByteBuf的读写索引，同时ByteBuffer也无法感知ByteBuf后续的扩容操作。&lt;/li&gt;
-  &lt;li&gt;ByteBuffer nioBuffer(int index, int length) ：与nioBuffer()类似，但可以指定缓冲区的起始位置和长度。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;&lt;strong&gt;&lt;em&gt;随机读写（set和get）&lt;/em&gt;&lt;/strong&gt;
-除了顺序读写操作以外，ByteBuf还支持指定位置的读写。但需要注意的是set和get操作不会触发自动扩容的逻辑，所以在调用随机读写操作前需要保证提供的位置索引合法，否则会抛出异常。&lt;/p&gt;
-
-&lt;h2 id=&quot;子类划分&quot;&gt;子类划分&lt;/h2&gt;
-
-&lt;p&gt;ByteBuf部分子类结构图如下：&lt;/p&gt;
-
-&lt;p&gt;&lt;img src=&quot;/img/netty_bytebuf_classes.png&quot; alt=&quot;子类&quot; /&gt;&lt;/p&gt;
-
-&lt;h3 id=&quot;堆内存和直接内存&quot;&gt;堆内存和直接内存&lt;/h3&gt;
-
-&lt;p&gt;从内存分配的角度看，ByteBuf分为以堆内存为缓冲区和以直接内存为缓冲区两类。以堆内存为缓冲区的好处是分配和回收快，可以被java虚拟机自动回收；但缺点就是如果是进行Socket的IO操作，需要额外的内存复制操作，将缓冲区内容复制到内核channel中，会在一定程度上影响性能。以直接内存为缓冲区的好处是在Socket上进行读写操作时少了一次内存复制，速度比堆内存快；但缺点是分配和回收的速度会慢一些。&lt;/p&gt;
-
-&lt;h3 id=&quot;对象池和普通对象&quot;&gt;对象池和普通对象&lt;/h3&gt;
-
-&lt;p&gt;从内存回收的角度看，ByteBuf分为基于对象池的ByteBuf和普通ByteBuf。这两者的区别就是基于对象池的ByteBuf可以重用已经创建的ByteBuf，提高内存利用率而避免高负载导致的频繁GC，但对象池需要额外的管理和维护，所以具体采用哪种实现应该根据具体情况灵活选择。&lt;/p&gt;
-
-&lt;h2 id=&quot;abstractbytebuf源码分析&quot;&gt;AbstractByteBuf源码分析&lt;/h2&gt;
-
-&lt;h3 id=&quot;成员变量&quot;&gt;成员变量&lt;/h3&gt;
-
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;final&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ResourceLeakDetector&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ByteBuf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;leakDetector&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;ResourceLeakDetectorFactory&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;instance&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;().&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;newResourceLeakDetector&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ByteBuf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;class&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;writerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;markedReaderIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;markedWriterIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;maxCapacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SwappedByteBuf&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;swappedBuf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;可以看到AbstractByteBuf定义了一些子类所需要的公共变量，如读写位置索引，最大容量等。此外还有一个静态变量leakDetector，这个对象是用来检测对象是否泄漏的。AbstractByteBuf并没有定义数据缓冲区的具体实现，这个部分由具体的子类负责定义，如byte数组或者DirectByteBuffer。&lt;/p&gt;
-
-&lt;h3 id=&quot;读操作&quot;&gt;读操作&lt;/h3&gt;
-
-&lt;p&gt;公共功能由父类实现，而子类则负责实现一些差异化功能。&lt;/p&gt;
-
-&lt;p&gt;以readBytes(byte[] dst, int dstIndex, int length) 为例：&lt;/p&gt;
-
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ByteBuf&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;readBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;byte&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dst&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dstIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;checkReadableBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;getBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dst&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dstIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;首先调用checkReadableBytes方法检查是否有足够的内容可读，此处是根据读写索引来进行判断。检查完毕之后调用getBytes方法将可读缓冲区内容复制到给定的byte数组中，而getBytes是一个抽象方法，有不同的子类负责具体的实现。读取成功之后readerIndex相应增加length。&lt;/p&gt;
-
-&lt;h3 id=&quot;写操作&quot;&gt;写操作&lt;/h3&gt;
-
-&lt;p&gt;以writeBytes(byte[] src, int srcIndex, int length)为例：&lt;/p&gt;
-
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ByteBuf&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;writeBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;byte&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;[]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;src&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;srcIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;ensureAccessible&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;ensureWritable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;setBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;writerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;src&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;srcIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;writerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;首先调用ensureAccessible方法来保证可达性，在任何试图修改缓冲区的操作前都需要进行这一步来确认缓冲区是否已经被释放了。然后调用ensureAccessible检查要输入的字节数，如果要写入的字节小于可写缓冲区则直接返回，否则进行缓冲区扩容，如果扩容到最大容量后仍不能满足要写入的长度则抛出IndexOutOfBounds异常。
-ensureWritable的实现如下：&lt;/p&gt;
-
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ByteBuf&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;ensureWritable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;minWritableBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;minWritableBytes&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;throw&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;IllegalArgumentException&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;String&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;format&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;
-                &lt;span class=&quot;s&quot;&gt;&quot;minWritableBytes: %d (expected: &amp;gt;= 0)&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;minWritableBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;));&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-
-    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;minWritableBytes&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;writableBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;())&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-
-    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;minWritableBytes&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;maxCapacity&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;writerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;throw&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;IndexOutOfBoundsException&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;String&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;format&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;
-                &lt;span class=&quot;s&quot;&gt;&quot;writerIndex(%d) + minWritableBytes(%d) exceeds maxCapacity(%d): %s&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt;
-                &lt;span class=&quot;n&quot;&gt;writerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;minWritableBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;maxCapacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;));&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-
-    &lt;span class=&quot;c1&quot;&gt;// 动态扩容&lt;/span&gt;
-    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;newCapacity&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;calculateNewCapacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;writerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;minWritableBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-
-    &lt;span class=&quot;n&quot;&gt;capacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;newCapacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;再看ByteBuf动态扩容的实现：
-先调用calculateNewCapacity方法来计算扩容后的容量大小，这个方法有一个参数，即为满足扩容要求的最小容量。&lt;/p&gt;
-
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;calculateNewCapacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;minNewCapacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;kd&quot;&gt;final&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;maxCapacity&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;maxCapacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;kd&quot;&gt;final&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;threshold&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1048576&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;4&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;// 设置扩容门限为4MB&lt;/span&gt;
-
-    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;minNewCapacity&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;threshold&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;threshold&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-
-    &lt;span class=&quot;c1&quot;&gt;// 如果超过了门限则每次按门限大小递增&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;minNewCapacity&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;threshold&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;newCapacity&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;minNewCapacity&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;threshold&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;threshold&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;newCapacity&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;maxCapacity&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;threshold&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;newCapacity&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;maxCapacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;newCapacity&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;threshold&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;newCapacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-
-    &lt;span class=&quot;c1&quot;&gt;// 如果没有超过门限，则从64开始每次翻倍&lt;/span&gt;
-    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;newCapacity&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;64&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;while&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;newCapacity&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;minNewCapacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;newCapacity&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-
-    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Math&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;min&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;newCapacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;maxCapacity&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;首先设置门限值为4MB，根据minNewCapacity和门限的大小来判断扩容逻辑：如果需要的新的容量大小为4M，则返回4M；如果新容量没有超过4M，则从64开始逐渐倍增，直到大于或等于新容量为止；如果新容量超过了4M，则每次步进4M，直到满足要求。在算出新的容量之后还需要和设定的最大容量比较，如果超过了最大容量则返回最大容量，否则返回计算出的新容量值。&lt;/p&gt;
-
-&lt;p&gt;之所以采用倍增加步进的算法，是因为如果直接用minNewCapacity作为新的容量值，那么本次写入之后可写缓冲区大大小为0，下一次写入则又需要动态扩容。设置门限的原因在于在初始值较小的时候采取倍增的方法不会有太大影响，但当增长到一定阈值之后，再进行倍增可能会带来额外的消耗。比如内存增长到了10M，而此时系统需要12M，如果再进行倍增的话就到达20M，就有8M的空间被浪费了。随着客户端连接的线性增长，内存浪费的大小也随之增长，内存消耗的成本会成比例的增加，所以需要在到达某个阈值之后进行平滑的扩张。而此处的门限值4M则是一个经验值，不同的应用场景可能不同。&lt;/p&gt;
-
-&lt;p&gt;在计算出新的容量之后，需要创建新的缓冲区并将当前缓冲区的内容复制到新的缓冲区中，即此处的capacity方法，该方法也是一个抽象方法。&lt;/p&gt;
-
-&lt;h3 id=&quot;重用缓冲区&quot;&gt;重用缓冲区&lt;/h3&gt;
-
-&lt;p&gt;前面提到过ByteBuf的缓冲区被两个位置指针分割为三个区域，在readerIndex以前的部分是已读部分，可以通过discardBytes来重用这部分缓冲区。&lt;/p&gt;
-
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ByteBuf&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;discardReadBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;ensureAccessible&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-
-    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;writerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;setBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;writerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;writerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;adjustMarkers&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;adjustMarkers&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;writerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;首先判断如果readerIndex为0，也就是没有已读的缓冲区，这时候直接返回。如果readerIndex和writerIndex相等，即所有的数据都被读取过了，这时候直接把readerIndex和writerIndex设为0，相当于重用整个缓冲区，但这时候并不会修改缓冲区内容。如果readerIndex和writerIndex不相等，那么整个ByteBuf缓冲区包含三个部分：已读部分、可读部分、可写部分，这时候调用setBytes进行内容复制，将可读部分复制到缓冲区起始，然后重新设置readerIndex和writerIndex。在设置读写索引的同时还需调用adjustMarkers方法正确地设置备份的markedReaderIndex和markedWriterIndex。&lt;/p&gt;
-
-&lt;p&gt;除了discardReadBytes以外，还有一个类似的方法discardSomeReadBytes()，这个方法的名字有些迷惑，它的具体功能与discardBytes大致一样，唯一的区别当缓冲区有未读部分时，他会判断readerIndex是否大于容量的一半，如果是则调用setBytes复制和重用缓冲区内容，否则什么也不做。&lt;/p&gt;
-
-&lt;h3 id=&quot;跳过字节&quot;&gt;跳过字节&lt;/h3&gt;
-
-&lt;p&gt;AbstractByteBuf还提供跳过某些字节的方法，该方法只有一个参数length，即要跳过的字节数，调用者需保证length参数的合法性，否则会抛出异常，该方法的具体实现就是将readerIndex增加length。&lt;/p&gt;
-
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ByteBuf&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;skipBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;checkReadableBytes&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;readerIndex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;length&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;h3 id=&quot;其他子类&quot;&gt;其他子类&lt;/h3&gt;
-
-&lt;p&gt;AbstractByteBuf有很多具体实现，比如UnpooledHeapByteBuf，它基于堆内存来分配缓冲区，其内部是一个byte数组，它的扩容和复制都使用是的System.arrayCopy方法，与UnpooledHeapByteBuf对应的还有UnpooledDirectByteBuf，它使用直接内存做缓冲区。此外还有基于对象池的PooledHeapByteBuf和PooledDirectByteBuf，它们的创建和销毁策略有所不同，其他的功能都是等同的。&lt;/p&gt;</content><author><name></name></author><category term="[&quot;netty&quot;]" /><summary type="html">简介</summary></entry></feed>
+&lt;/table&gt;</content><author><name></name></author><summary type="html">简介</summary></entry></feed>

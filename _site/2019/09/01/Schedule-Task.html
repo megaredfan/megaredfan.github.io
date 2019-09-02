@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>quatrz | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="quatrz" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="quartz简介" />
+<meta property="og:description" content="quartz简介" />
+<link rel="canonical" href="http://localhost:4000/2019/09/01/Schedule-Task.html" />
+<meta property="og:url" content="http://localhost:4000/2019/09/01/Schedule-Task.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2019-09-01T00:00:00+08:00" />
+<script type="application/ld+json">
+{"description":"quartz简介","@type":"BlogPosting","url":"http://localhost:4000/2019/09/01/Schedule-Task.html","headline":"quatrz","dateModified":"2019-09-01T00:00:00+08:00","datePublished":"2019-09-01T00:00:00+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/09/01/Schedule-Task.html"},"@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">quatrz</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2019-09-01T00:00:00+08:00" itemprop="datePublished">Sep 1, 2019
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="quartz简介">quartz简介</h2>
+
+<p>quartz是一个基于java的开源的任务调度框架。</p>
+
+<h2 id="quatrz-api">quatrz API</h2>
+
+<h3 id="scheduler">Scheduler</h3>
+
+<p>一个Scheduler通过SchedulerFactory创建和销毁。Scheduler提供对Job和Trigger的创建、销毁、暂停等一切调度相关的操作。要启动一个Scheduler，需要显式地调用它的start方法。</p>
+
+<h3 id="job">Job</h3>
+
+<p>Job是实际的任务执行逻辑的接口，它只有一个方法execute：</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  <span class="kn">package</span> <span class="n">org</span><span class="o">.</span><span class="na">quartz</span><span class="o">;</span>
+  <span class="kd">public</span> <span class="kd">interface</span> <span class="nc">Job</span> <span class="o">{</span>
+    <span class="kd">public</span> <span class="kt">void</span> <span class="nf">execute</span><span class="o">(</span><span class="n">JobExecutionContext</span> <span class="n">context</span><span class="o">)</span>
+      <span class="kd">throws</span> <span class="n">JobExecutionException</span><span class="o">;</span>
+  <span class="o">}</span>
+
+
+</code></pre></div></div>
+
+<p>当一个Job被触发时，Scheduler会重新创建一个Job，然后通过一个worker线程执行Job的execute方法，所以实际的Job实现类中无法维护状态字段。JobExecutionContext包含了一些“运行时”的信息，比如触发Job的Scheduler、触发的Trigger、Job对应的JobDetail等等。JobDetail是在创建Job时构建的包含Job的各种详细信息的对象，其中还包括一个JobDataMap的对象，JobDataMap中存储了Job的各种状态信息。</p>
+
+<h3 id="trigger">Trigger</h3>
+
+<p>Trigger的作用就是触发Job的执行，其中包含了触发时间、触发周期等相关信息。Trigger也有对应的JobDataMap对象，可以用于向Job传递某些参数。Trigger有不同的实现类型，比如SimpleTrigger和CronTrigger。SimpleTrigger的触发类似Java中的Schedule线程池，可以支持单次执行和定时重复执行等；CronTrigger则支持通过cron表达式指定触发时机。</p>
+
+<p>Trigger包含优先级的概念，当有不同的Trigger在同一时间触发时，quartz会根据其优先级决定触发的顺序，因为在资源不足的情况下，</p>
+
+<h3 id="将job和trigger定义分开的原因">将Job和Trigger定义分开的原因</h3>
+
+<p>第一个原因，Job和Trigger可以独立存储，并支持多对多的关联，减少重复定义。第二个原因是这样可以降低耦合程度，可以方便后续对Job或者Trigger的编辑和替换。</p>
+
+<h3 id="标识">标识</h3>
+
+<p>Job和Triiger都有自己的身份标识，身份标识由name和group两部分组成，并规定group+name的组合必须保证在Scheduler范围内唯一。</p>
+
+<h3 id="jobdatamap">JobDataMap</h3>
+
+<p>每个JobDetail和Trigger都有与其对应的JobDataMap。用户可以在定义JobDetail和Trigger时传入指定的key-value，Job在执行时就可以从JobExecutionContext中获取对应的key-value。此外quartz还支持将JobDataMap中的key-value与Job的属性字段对应起来，只要Job实现类中定义了与JobDataMap中key-value同名的字段，quartz就会通过setter方法将其设置到创建出来的Job实例中。</p>
+
+<p>quartz还支持Job的持久化，所以在选择要将什么数据存到JobDataMap时要考虑结构变化带来的序列化兼容问题。在Job实现类上加上@PersistJobDataAfterExecution就可以使quartz在任务执行后将JobDataMap更新。@PersistJobDataAfterExecution通常建议和@DisallowConcurrentExecution配合使用，后者会通知quartz不允许并发执行任务，以避免状态同步问题。</p>
+
+<h3 id="triggerlistener-和-joblistener">TriggerListener 和 JobListener</h3>
+
+<p>quartz提供TriggerLisenter和JobListener，可以在任务触发时获得通知甚至是阻止任务执行。</p>
+
+  </div><a class="u-url" href="/2019/09/01/Schedule-Task.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
