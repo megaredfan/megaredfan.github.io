@@ -52,3 +52,59 @@ quartz还支持Job的持久化，所以在选择要将什么数据存到JobDataM
 ### TriggerListener 和 JobListener
 
 quartz提供TriggerLisenter和JobListener，可以在任务触发时获得通知甚至是阻止任务执行。
+
+## 具体逻辑
+
+### Scheduler初始化
+
+Scheduler是通过SchedulerFactory创建的，默认的SchedulerFactory有两种实现：
+
++ StdSchedulerFactory 标准实现，基于properties文件进行初始化
++ DirectSchedulerFactory 轻量级实现，可以直接通过代码初始化
+
+#### StdSchedulerFactory
+
+StdSchedulerFactory默认会从*当前工作路径*查找名为"quartz.properties"的文件进行初始化；如果没有找到，则会用自带的默认配置文件进行初始化，此外用户还可以通过系统属性"org.quartz.properties"额外指定要加载的配置文件的文件名。除了在配置文件中指定具体的配置，用户还可以通过环境变量以及jvm参数(通过-D指定)覆盖默认的选项。下面是默认的配置文件的内容：
+
+```
+org.quartz.scheduler.instanceName: DefaultQuartzScheduler
+org.quartz.scheduler.rmi.export: false
+org.quartz.scheduler.rmi.proxy: false
+org.quartz.scheduler.wrapJobExecutionInUserTransaction: false
+org.quartz.threadPool.class: org.quartz.simpl.SimpleThreadPool
+org.quartz.threadPool.threadCount: 10
+org.quartz.threadPool.threadPriority: 5
+org.quartz.threadPool.threadsInheritContextClassLoaderOfInitializingThread: true
+org.quartz.jobStore.misfireThreshold: 60000
+org.quartz.jobStore.class: org.quartz.simpl.RAMJobStore
+```
+
+可以看到主要有scheduler、threadPool和jobStore相关的配置，更多的配置可以参考quartz的官方文档。
+
+StdSchedulerFactory返回的Scheduler对象时StdScheduler，而StdScheduler是对QuartzScheduler的简单封装，QuartzScheduler就是quartz中schedule的核心逻辑了。
+
+#### QuartzScheduler
+
+##### start
+
+start方法会启动一个QuartzSchedulerThread，QuartzScheduler所有的触发操作都发生在这个线程。
+
+##### scheduleJob
+
+scheduleJob会将传入的JobDetai和Trigger存放到JobStore中然后触发相应的Listener以及唤醒scheudle线程。
+
+#### QuartzSchedulerThread
+
+QuartzScheduleThread相当于一个事件循环，它会在循环中执行以下几个任务：
+
+1. 阻塞等待worker线程池可用
+2. 从JobStore中获取所有满足触发条件的Trigger
+3. 调用JobStore的triggersFired方法触发Trigger，注意这里只是触发Trigger，并没有执行对应的Job。这一步的目的主要是在任务执行前给Trigger一个更新自身状态的机会。
+4. JobStore触发Trigger后会读取出Trigger对应的Job信息，根据返回的Job信息构建可执行的JobRunShell对象。
+5. 使用worker线程池执行JobRunShell，也就是执行真正的Job逻辑。
+
+### Job持久化（JobStore）
+
+quartz中的JobStore负责储存Job和Trigger定义，它主要与QuartzScheduler交互。按照约定，Job和Trigger的存储都使用group+name的组合作为标识。
+
+目前quartz提供基于内存的实现以及基于JDBC的实现。基于内存的实现把所有Job和Trigger定义存在内存中，一旦重启所有数据就会丢失；基于JDBC的实现将数据存放在数据库中，同时还支持事务。

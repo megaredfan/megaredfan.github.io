@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-09-02T20:22:31+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">quatrz</title><link href="http://localhost:4000/2019/09/01/Schedule-Task.html" rel="alternate" type="text/html" title="quatrz" /><published>2019-09-01T00:00:00+08:00</published><updated>2019-09-01T00:00:00+08:00</updated><id>http://localhost:4000/2019/09/01/Schedule%20Task</id><content type="html" xml:base="http://localhost:4000/2019/09/01/Schedule-Task.html">&lt;h2 id=&quot;quartz简介&quot;&gt;quartz简介&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-09-03T20:59:14+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">quatrz</title><link href="http://localhost:4000/2019/09/01/Schedule-Task.html" rel="alternate" type="text/html" title="quatrz" /><published>2019-09-01T00:00:00+08:00</published><updated>2019-09-01T00:00:00+08:00</updated><id>http://localhost:4000/2019/09/01/Schedule%20Task</id><content type="html" xml:base="http://localhost:4000/2019/09/01/Schedule-Task.html">&lt;h2 id=&quot;quartz简介&quot;&gt;quartz简介&lt;/h2&gt;
 
 &lt;p&gt;quartz是一个基于java的开源的任务调度框架。&lt;/p&gt;
 
@@ -45,7 +45,66 @@
 
 &lt;h3 id=&quot;triggerlistener-和-joblistener&quot;&gt;TriggerListener 和 JobListener&lt;/h3&gt;
 
-&lt;p&gt;quartz提供TriggerLisenter和JobListener，可以在任务触发时获得通知甚至是阻止任务执行。&lt;/p&gt;</content><author><name></name></author><summary type="html">quartz简介</summary></entry><entry><title type="html">Linux磁盘缓存机制</title><link href="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html" rel="alternate" type="text/html" title="Linux磁盘缓存机制" /><published>2019-08-18T00:00:00+08:00</published><updated>2019-08-18T00:00:00+08:00</updated><id>http://localhost:4000/2019/08/18/Linux%20Disk%20Cache</id><content type="html" xml:base="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+&lt;p&gt;quartz提供TriggerLisenter和JobListener，可以在任务触发时获得通知甚至是阻止任务执行。&lt;/p&gt;
+
+&lt;h2 id=&quot;具体逻辑&quot;&gt;具体逻辑&lt;/h2&gt;
+
+&lt;h3 id=&quot;scheduler初始化&quot;&gt;Scheduler初始化&lt;/h3&gt;
+
+&lt;p&gt;Scheduler是通过SchedulerFactory创建的，默认的SchedulerFactory有两种实现：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;StdSchedulerFactory 标准实现，基于properties文件进行初始化&lt;/li&gt;
+  &lt;li&gt;DirectSchedulerFactory 轻量级实现，可以直接通过代码初始化&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4 id=&quot;stdschedulerfactory&quot;&gt;StdSchedulerFactory&lt;/h4&gt;
+
+&lt;p&gt;StdSchedulerFactory默认会从&lt;em&gt;当前工作路径&lt;/em&gt;查找名为”quartz.properties”的文件进行初始化；如果没有找到，则会用自带的默认配置文件进行初始化，此外用户还可以通过系统属性”org.quartz.properties”额外指定要加载的配置文件的文件名。除了在配置文件中指定具体的配置，用户还可以通过环境变量以及jvm参数(通过-D指定)覆盖默认的选项。下面是默认的配置文件的内容：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;org.quartz.scheduler.instanceName: DefaultQuartzScheduler
+org.quartz.scheduler.rmi.export: false
+org.quartz.scheduler.rmi.proxy: false
+org.quartz.scheduler.wrapJobExecutionInUserTransaction: false
+org.quartz.threadPool.class: org.quartz.simpl.SimpleThreadPool
+org.quartz.threadPool.threadCount: 10
+org.quartz.threadPool.threadPriority: 5
+org.quartz.threadPool.threadsInheritContextClassLoaderOfInitializingThread: true
+org.quartz.jobStore.misfireThreshold: 60000
+org.quartz.jobStore.class: org.quartz.simpl.RAMJobStore
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;可以看到主要有scheduler、threadPool和jobStore相关的配置，更多的配置可以参考quartz的官方文档。&lt;/p&gt;
+
+&lt;p&gt;StdSchedulerFactory返回的Scheduler对象时StdScheduler，而StdScheduler是对QuartzScheduler的简单封装，QuartzScheduler就是quartz中schedule的核心逻辑了。&lt;/p&gt;
+
+&lt;h4 id=&quot;quartzscheduler&quot;&gt;QuartzScheduler&lt;/h4&gt;
+
+&lt;h5 id=&quot;start&quot;&gt;start&lt;/h5&gt;
+
+&lt;p&gt;start方法会启动一个QuartzSchedulerThread，QuartzScheduler所有的触发操作都发生在这个线程。&lt;/p&gt;
+
+&lt;h5 id=&quot;schedulejob&quot;&gt;scheduleJob&lt;/h5&gt;
+
+&lt;p&gt;scheduleJob会将传入的JobDetai和Trigger存放到JobStore中然后触发相应的Listener以及唤醒scheudle线程。&lt;/p&gt;
+
+&lt;h4 id=&quot;quartzschedulerthread&quot;&gt;QuartzSchedulerThread&lt;/h4&gt;
+
+&lt;p&gt;QuartzScheduleThread相当于一个事件循环，它会在循环中执行以下几个任务：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;阻塞等待worker线程池可用&lt;/li&gt;
+  &lt;li&gt;从JobStore中获取所有满足触发条件的Trigger&lt;/li&gt;
+  &lt;li&gt;调用JobStore的triggersFired方法触发Trigger，注意这里只是触发Trigger，并没有执行对应的Job。这一步的目的主要是在任务执行前给Trigger一个更新自身状态的机会。&lt;/li&gt;
+  &lt;li&gt;JobStore触发Trigger后会读取出Trigger对应的Job信息，根据返回的Job信息构建可执行的JobRunShell对象。&lt;/li&gt;
+  &lt;li&gt;使用worker线程池执行JobRunShell，也就是执行真正的Job逻辑。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h3 id=&quot;job持久化jobstore&quot;&gt;Job持久化（JobStore）&lt;/h3&gt;
+
+&lt;p&gt;quartz中的JobStore负责储存Job和Trigger定义，它主要与QuartzScheduler交互。按照约定，Job和Trigger的存储都使用group+name的组合作为标识。&lt;/p&gt;
+
+&lt;p&gt;目前quartz提供基于内存的实现以及基于JDBC的实现。基于内存的实现把所有Job和Trigger定义存在内存中，一旦重启所有数据就会丢失；基于JDBC的实现将数据存放在数据库中，同时还支持事务。&lt;/p&gt;</content><author><name></name></author><summary type="html">quartz简介</summary></entry><entry><title type="html">Linux磁盘缓存机制</title><link href="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html" rel="alternate" type="text/html" title="Linux磁盘缓存机制" /><published>2019-08-18T00:00:00+08:00</published><updated>2019-08-18T00:00:00+08:00</updated><id>http://localhost:4000/2019/08/18/Linux%20Disk%20Cache</id><content type="html" xml:base="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
 
 &lt;p&gt;最近遇到了一起跟磁盘IO相关的线上故障，借此总结一下之前不太了解的Linux磁盘缓存相关的知识。&lt;/p&gt;
 
