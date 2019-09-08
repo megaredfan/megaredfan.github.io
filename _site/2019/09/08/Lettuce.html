@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>Lettuce学习笔记 | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="Lettuce学习笔记" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Lettuce简介" />
+<meta property="og:description" content="Lettuce简介" />
+<link rel="canonical" href="http://localhost:4000/2019/09/08/Lettuce.html" />
+<meta property="og:url" content="http://localhost:4000/2019/09/08/Lettuce.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2019-09-08T00:00:00+08:00" />
+<script type="application/ld+json">
+{"mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/09/08/Lettuce.html"},"url":"http://localhost:4000/2019/09/08/Lettuce.html","headline":"Lettuce学习笔记","dateModified":"2019-09-08T00:00:00+08:00","datePublished":"2019-09-08T00:00:00+08:00","description":"Lettuce简介","@type":"BlogPosting","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Lettuce学习笔记</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2019-09-08T00:00:00+08:00" itemprop="datePublished">Sep 8, 2019
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="lettuce简介">Lettuce简介</h2>
+
+<p>Lettuce是一个开源的redis client，由javg编写。其主要的宣传特性是线程安全、支持同步异步以及reactive api、支持单实例redis、redis sentinel、redis cluster等。</p>
+
+<p>Lettuce的实现主要是基于netty实现了网络层逻辑，通过专门的设计支持在同一个连接上并发的处理多个请求响应。</p>
+
+<h2 id="使用实例">使用实例</h2>
+
+<p>1、 添加依赖</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;dependency&gt;</span>
+    <span class="nt">&lt;groupId&gt;</span>io.lettuce<span class="nt">&lt;/groupId&gt;</span>
+    <span class="nt">&lt;artifactId&gt;</span>lettuce-core<span class="nt">&lt;/artifactId&gt;</span>
+    <span class="nt">&lt;version&gt;</span>${lettuce.version}<span class="nt">&lt;/version&gt;</span>
+<span class="nt">&lt;/dependency&gt;</span>
+</code></pre></div></div>
+
+<p>2、创建RedisClient并执行命令</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">//创建客户端，也可以与Spring集成</span>
+<span class="n">RedisClient</span> <span class="n">redisClient</span> <span class="o">=</span> <span class="n">RedisClient</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="s">"redis://password@localhost:6379/0"</span><span class="o">);</span>
+<span class="n">StatefulRedisConnection</span><span class="o">&lt;</span><span class="n">String</span><span class="o">,</span> <span class="n">String</span><span class="o">&gt;</span> <span class="n">connection</span> <span class="o">=</span> <span class="n">redisClient</span><span class="o">.</span><span class="na">connect</span><span class="o">();</span>
+<span class="c1">//获取同步API</span>
+<span class="n">RedisCommands</span><span class="o">&lt;</span><span class="n">String</span><span class="o">,</span> <span class="n">String</span><span class="o">&gt;</span> <span class="n">syncCommands</span> <span class="o">=</span> <span class="n">connection</span><span class="o">.</span><span class="na">sync</span><span class="o">();</span>
+<span class="n">syncCommands</span><span class="o">.</span><span class="na">set</span><span class="o">(</span><span class="s">"key"</span><span class="o">,</span> <span class="s">"Hello, Redis!"</span><span class="o">);</span>
+<span class="c1">//获取异步API</span>
+<span class="n">RedisAsyncCommands</span><span class="o">&lt;</span><span class="n">String</span><span class="o">,</span> <span class="n">String</span><span class="o">&gt;</span> <span class="n">asyncCommands</span> <span class="o">=</span> <span class="n">connection</span><span class="o">.</span><span class="na">async</span><span class="o">();</span>
+<span class="n">asyncCommands</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="s">"key"</span><span class="o">).</span><span class="na">thenAccept</span><span class="o">(</span><span class="n">result</span> <span class="o">-&gt;</span> <span class="n">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">"the result is "</span> <span class="o">+</span> <span class="n">result</span><span class="o">));</span>  
+<span class="c1">//获取reactive API</span>
+<span class="n">RedisReactiveCommands</span><span class="o">&lt;</span><span class="n">String</span><span class="o">,</span> <span class="n">String</span><span class="o">&gt;</span> <span class="n">reactiveCommands</span> <span class="o">=</span> <span class="n">connection</span><span class="o">.</span><span class="na">reactive</span><span class="o">();</span>
+<span class="n">reactiveCommands</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="s">"key"</span><span class="o">).</span><span class="na">subscribe</span><span class="o">(</span><span class="n">result</span> <span class="o">-&gt;</span> <span class="n">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">"the result is "</span> <span class="o">+</span> <span class="n">result</span><span class="o">));</span>
+<span class="c1">//关闭连接和客户端</span>
+<span class="n">connection</span><span class="o">.</span><span class="na">close</span><span class="o">();</span>
+<span class="n">redisClient</span><span class="o">.</span><span class="na">shutdown</span><span class="o">();</span>
+</code></pre></div></div>
+<h2 id="statefulredisconnection">StatefulRedisConnection</h2>
+
+<p>StatefulRedisConnection是一个接口，它代表客户端与服务端的一个连接，同步、异步和reactive三种api底层都是通过StatefulRedisConnection与服务端通信。</p>
+
+<h3 id="连接的创建">连接的创建</h3>
+
+<p>连接的创建由RedisClient的connect方法执行，connect方法需要传入编解码所需的codec与服务端的URI。codec可以不需要指定，默认是StringCodec.UTF8。connect方法最终会调用到connectStandaloneAsync方法，在这里执行真正的连接创建逻辑，主要包含三个部分：</p>
+
+<ol>
+  <li>创建DefaultEndpoint对象，DefaultEndpoint包含了连接自身的管理以及向对端发送命令的逻辑。</li>
+  <li>创建StatefulRedisConnectionImpl对象，它是StatefulRedisConnection的实际实现。</li>
+  <li>调用connectStatefulAsync方法进行实际的连接。</li>
+</ol>
+
+<p>connectStatefulAsync方法中首先会创建ConnectionBuilder对象，其中包含了连接的各个选项，比如连接地址、netty相关的配置等等。接着会通过解析redis uri获得一个socketAddress，然后触发initializeChannelAsync0方法中的netty的connect操作，于是连接就建立了。</p>
+
+<h3 id="连接状态的管理">连接状态的管理</h3>
+
+<p>lettuce是基于netty实现的，所以它在netty的channel上添加了几个自定义的handler，其中具体包括：</p>
+
+<ol>
+  <li>ChannelGroupHandler，用于维护channelGroup的状态，主要逻辑就是在连接建立或者断开时将对应的连接添加到channelGroup或者从channelGroup中移除</li>
+  <li>CommandEncoder，用于redis command的编码</li>
+  <li>CommandHandler，lettuce的核心handler，主要负责redis command发送以及服务端响应的解析</li>
+  <li>ConnectionWatchdog，用于监控连接状态和连接的自动重连</li>
+  <li>ConnectionEventTrigger，用于转发channel的状态事件，对外暴露出listener，用户可以借此监听连接变化</li>
+</ol>
+
+<p>连接状态的管理主要有ChannelGroupHandler与ConnectionWatchDog实现，其中ChannelGroupHandler的逻辑比较简单，ConnectionWatchDog的实现主要是监听channelInactive事件，然后提交一个重连任务到线程池。</p>
+
+<p>此外，DefaultEndpoint也会监听连接状态的变化，实际上整个通信过程中与服务端的连接由DefaultEndpoint对象持有，当发生连接变化（比如断开或者重连）时，DefaultEndpoint会根据连接的状态执行不同的逻辑，比如：</p>
+
+<ol>
+  <li>当连接建立时，将持有的连接对象替换成新建立的连接</li>
+  <li>当发送数据时，先判断连接的状态，如果连接正常则直接通过连接发送；否则将数据添加到自身的缓冲里</li>
+  <li>当连接重连时，将缓冲的数据发送出去，并将持有的连接对象替换成新建立的连接</li>
+</ol>
+
+<h2 id="commandhandler">CommandHandler</h2>
+
+<p>CommandHandler是lettuce的核心部分，它自身也是一个channel handler，拦截了redis command的write和服务端响应的read等逻辑。</p>
+
+<h3 id="发送command">发送command</h3>
+
+<p>CommandHandler内部维护了一个command queue，所有发出的command都在这个queue中保存。当执行命令时，CommandHandler会拦截write方法，将其保存到queue中。</p>
+
+<h3 id="读取响应">读取响应</h3>
+
+<p>当收到来自服务端的响应时，CommandHandler就从queue head取出command然后进行解析，解析成功后command就执行完毕，这时将其从queue中移除即可，如果还有剩余的数据，就继续从queue中取出command进行解析。值得注意的是CommandHandler采用了buffer的方案来处理可能的TCP粘包拆包问题，其内部维护了一个单独的buffer，每次接收到服务端的数据时并不直接进行解析，而是先将其写入到自身的buffer中，然后对buffer的数据进行解析，而每次解析时会尽可能的消费buffer中的所有数据。</p>
+
+<h2 id="command的编解码">command的编解码</h2>
+
+<p>command的编码在CommandEncoder中触发，其逻辑也比较简单，就是直接调用了command的encode方法。对于服务端响应的解析则直接位于CommandHandler的channelRead方法中。command的编解码也就是直接实现了redis的通信协议，具体可以参考：<a href="http://redisdoc.com/topic/protocol.html">redis通信协议</a></p>
+
+<h2 id="api的实现">API的实现</h2>
+
+<h3 id="异步api">异步API</h3>
+
+<p>在对外API的实现方面，主要逻辑由以下几步构成：</p>
+
+<ol>
+  <li>组装命令对应的Command对象，包括命令的类型、命令的参数、命令的返回类型等</li>
+  <li>通过StatefulRedisConnection的dispatch方法发送命令，dispatch方法实际上也就是调用了channel的write方法</li>
+  <li>返回对应的Command对象</li>
+</ol>
+
+<p>在异步API的实现中，返回的是一个AsyncCommand对象，AsyncCommand继承了CompletableFuture类型，所以可以作为一个Future返回。AsyncCommand内维护了原始的命令以及返回值的占位符，当解析完成后AsyncCommand就会调用其自身的compelte方法，调用就完成了。</p>
+
+<h3 id="同步api">同步API</h3>
+
+<p>同步API的实现实际上就是封装了异步调用的API，在返回前阻塞调用Future的get方法。</p>
+
+<h3 id="reactive-api">reactive API</h3>
+
+<p>reactive API的实现底层也是调用了StatefulRedisConnection的dispatch方法发送命令，然后将返回包装成一个Publisher。</p>
+
+  </div><a class="u-url" href="/2019/09/08/Lettuce.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
