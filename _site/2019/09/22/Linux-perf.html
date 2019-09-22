@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>linux perf | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="linux perf" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="简介" />
+<meta property="og:description" content="简介" />
+<link rel="canonical" href="http://localhost:4000/2019/09/22/Linux-perf.html" />
+<meta property="og:url" content="http://localhost:4000/2019/09/22/Linux-perf.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2019-09-22T00:00:00+08:00" />
+<script type="application/ld+json">
+{"mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/09/22/Linux-perf.html"},"url":"http://localhost:4000/2019/09/22/Linux-perf.html","headline":"linux perf","dateModified":"2019-09-22T00:00:00+08:00","datePublished":"2019-09-22T00:00:00+08:00","description":"简介","@type":"BlogPosting","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">linux perf</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2019-09-22T00:00:00+08:00" itemprop="datePublished">Sep 22, 2019
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="简介">简介</h2>
+
+<p>perf是linux系统中提供的性能分析工具，它基于一个叫“Performance counters”的内核子系统实现，同时支持硬件（CPU、PMU(Performance Monitoring Unit)）和软件(软件计数器、tracepoint)层面的性能分析。</p>
+
+<h3 id="perf中的事件">perf中的事件</h3>
+
+<p>perf与其他性能调优工具一样，都是通过对监测对象进行采样，根据采样点的分布来推断整个程序的行为。通过perf list命令我们可以看到perf支持很多的采样事件，比如branch-misses、cpu-clock等等。perf中预定义的事件属于不同的类型，比如硬件产生的事件（cache 命中/分支miss）和软件产生的事件（context switch/page fault)等等。</p>
+
+<h3 id="tracepoint">tracepoint</h3>
+
+<p>tracepoint是linux内核中定义的一些hook，如果被开启，它们就会在执行到特定逻辑时被触发，方便其他工具获取系统内部的运行状态等信息，perf就是利用了tracepoint，它会记录和统计tracepoint的各个事件，生成分析报告。</p>
+
+<h2 id="使用方式">使用方式</h2>
+
+<p>perf 工具的具体使用方式如下：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>perf [--version] [--help] COMMAND [ARGS]
+</code></pre></div></div>
+
+<p>其中的COMMAND列表可以通过执行perf –help查看，下面列举几个常用的command。</p>
+
+<h3 id="perf-stat">perf stat</h3>
+
+<p>perf stat的作用是执行一个命令并收集其运行过程中的各个数据，它可以提供一个程序运行情况的总体概览。比如：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>user@localhost:~$ perf stat hostname
+localhost
+
+ Performance counter stats for 'hostname':
+
+          0.313464      task-clock (msec)         #    0.481 CPUs utilized          
+                 2      context-switches          #    0.006 M/sec                  
+                 0      cpu-migrations            #    0.000 K/sec                  
+               153      page-faults               #    0.488 M/sec                  
+           896,723      cycles                    #    2.861 GHz                    
+           620,709      instructions              #    0.69  insn per cycle         
+           121,143      branches                  #  386.465 M/sec                  
+             6,247      branch-misses             #    5.16% of all branches        
+
+       0.000651441 seconds time elapsed
+</code></pre></div></div>
+
+<p>上面这个例子，通过perf stat运行了hostname命令，并将其运行过程中的一些指标汇总显示了出来，比如task-clock、context-switches等待。默认情况下，perf stat 会输出几个常用的事件的统计，比如：</p>
+
+<ul>
+  <li>task-clock-msecs：cpu 使用率</li>
+  <li>context-switches：进程切换次数</li>
+  <li>page-faults：发生缺页的次数</li>
+  <li>cpu-migrations：表示进程运行过程中发生了多少次CPU迁移，即被调度器从一个CPU转移到另外一个CPU上运行</li>
+  <li>cycles：处理器时钟，一条机器指令可能需要多个cycles</li>
+  <li>instructions: 机器指令数目</li>
+  <li>branches：遇到的分支指令数</li>
+  <li>branch-misses是预测错误的分支指令数</li>
+</ul>
+
+<p>除此之外，我们可以使用-e参数来指定我们感兴趣的事件，比如：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>user@localhost:~$ perf stat -e cache-misses hostname
+localhost
+
+ Performance counter stats for 'hostname':
+
+          682      cache-misses                                                
+
+       0.000646676 seconds time elapsed
+</code></pre></div></div>
+
+<h3 id="perf-top">perf top</h3>
+
+<p>perf top的作用是实时地显示系统当前的性能统计信息。前面的perf stat用于对一个特定的程序进行分析，而某些时候我们可能并不知道是哪个程序影响了系统性能，这时候就可以用perf top来查找可疑的程序。比如：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Samples: 775  of event 'cpu-clock', Event count (approx.): 92931021
+Overhead  Shared Object       Symbol
+   8.93%  [kernel]            [k] vsnprintf
+   7.73%  perf                [.] rb_next
+   5.92%  [kernel]            [k] kallsyms_expand_symbol.clone.0
+   5.07%  [kernel]            [k] format_decode
+   4.59%  [kernel]            [k] number
+   3.40%  perf                [.] symbols__insert
+   3.03%  libslang.so.2.2.1   [.] SLtt_smart_puts
+</code></pre></div></div>
+
+<p>上面的例子显示perf统计了cpu-clock事件的数据，根据比例进行了排序。和perf stat一样，我们可以通过-e参数指定统计其他的事件，比如perf top -e context-switches可以查看进程切换最多的top N个进程。</p>
+
+<h3 id="perf-record--perf-report">perf record &amp; perf report</h3>
+
+<p>perf record的作用和perf stat类似，它可以运行一个命令并生成统计信息，不过perf record不会将结果显示出来，而是将结果输出到文件中。perf record生成的文件可以用perf report来进行解析。</p>
+
+<p>perf record还可以通过-g参数，在分析时生成calling graph，帮助定位更上层的逻辑分布。</p>
+
+<h2 id="其他">其他</h2>
+
+<p>通过例子我们可以发现，perf的分析结果中的Symbol一列显示的都是c语言函数或者库函数的名字。对于java来说，jit编译产生的函数就会直接显示在symbol里，而不是java的函数名，这个问题后续再讨论了。</p>
+
+  </div><a class="u-url" href="/2019/09/22/Linux-perf.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
