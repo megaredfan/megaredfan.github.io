@@ -137,7 +137,7 @@ Overhead  Shared Object       Symbol
 
 <h2 id="其他">其他</h2>
 
-<p>通过例子我们可以发现，perf的分析结果中的Symbol一列显示的都是c语言函数或者库函数的名字。对于java来说，jit编译产生的函数就会直接显示在symbol里，而不是java的函数名，这个问题后续再讨论了。</p>
+<p>通过例子我们可以发现，perf的分析结果中的Symbol一列显示的都是c语言函数的名字。对于java来说，jit编译产生的函数就会直接显示在symbol里，而不是java的函数名，这时要定位问题就不是那么容易了，我们需要通过额外的手段将symbol和java程序的符号表对应起来，具体后续再讨论了。</p>
 
   </div><a class="u-url" href="/2019/09/22/Linux-perf.html" hidden></a>
 </article>
