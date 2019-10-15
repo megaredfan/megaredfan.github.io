@@ -15,7 +15,7 @@
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2019-10-13T00:00:00+08:00" />
 <script type="application/ld+json">
-{"mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/10/13/MESI.html"},"url":"http://localhost:4000/2019/10/13/MESI.html","headline":"cache一致性里的MESI协议","dateModified":"2019-10-13T00:00:00+08:00","datePublished":"2019-10-13T00:00:00+08:00","description":"前言","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"前言","@type":"BlogPosting","url":"http://localhost:4000/2019/10/13/MESI.html","headline":"cache一致性里的MESI协议","dateModified":"2019-10-13T00:00:00+08:00","datePublished":"2019-10-13T00:00:00+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/10/13/MESI.html"},"@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 <link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
 <body><header class="site-header" role="banner">
@@ -62,19 +62,19 @@
   </thead>
   <tbody>
     <tr>
-      <td>M</td>
+      <td>Modified</td>
       <td>当前cache的内容有效，数据已被修改而且与内存中的数据不一致，数据只在当前cache里存在</td>
     </tr>
     <tr>
-      <td>E</td>
+      <td>Exclusive</td>
       <td>当前cache的内容有效，数据与内存中的数据一致，数据只在当前cache里存在</td>
     </tr>
     <tr>
-      <td>S</td>
+      <td>Shared</td>
       <td>当前cache的内容有效，数据与内存中的数据一致，数据在多个cache里存在</td>
     </tr>
     <tr>
-      <td>I</td>
+      <td>Invalid</td>
       <td>当前cache无效</td>
     </tr>
   </tbody>
@@ -82,7 +82,7 @@
 
 <h3 id="状态转移">状态转移</h3>
 
-<p>MESI协议其实是一个状态机，cache的状态会跟根据外部事件的刺激而发生转移，具体的事件分为两类：处理器对cache的请求和总线对cache的请求，具体如下：</p>
+<p>MESI协议其实是一个状态机，cache的状态会跟根据外部事件的刺激而发生转移，具体的事件分为两类：处理器对cache的请求和总线对cache的请求：</p>
 
 <ol>
   <li>PrRd: 处理器请求读一个缓存块</li>

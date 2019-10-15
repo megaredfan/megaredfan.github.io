@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-10-13T22:17:28+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">cache一致性里的MESI协议</title><link href="http://localhost:4000/2019/10/13/MESI.html" rel="alternate" type="text/html" title="cache一致性里的MESI协议" /><published>2019-10-13T00:00:00+08:00</published><updated>2019-10-13T00:00:00+08:00</updated><id>http://localhost:4000/2019/10/13/MESI</id><content type="html" xml:base="http://localhost:4000/2019/10/13/MESI.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-10-15T15:30:55+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">cache一致性里的MESI协议</title><link href="http://localhost:4000/2019/10/13/MESI.html" rel="alternate" type="text/html" title="cache一致性里的MESI协议" /><published>2019-10-13T00:00:00+08:00</published><updated>2019-10-13T00:00:00+08:00</updated><id>http://localhost:4000/2019/10/13/MESI</id><content type="html" xml:base="http://localhost:4000/2019/10/13/MESI.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
 
 &lt;p&gt;在有多个核的处理器的处理器中，每个核都有自己的cache，而如何确保多个核的cache内容的一致则是一个很容易遇到的问题，MESI协议就是一个专门用来解决cache一致性的协议。很多处理器使用的都是MESI协议或者MESI协议的变体，而MESI协议其实也是MSI协议的变种。MESI协议采用了回写（write-back）的策略来更新cache，使得其性能进一步提高，但也带来了额外的风险，回写带来的问题可以在编写程序时使用内存屏障来规避。&lt;/p&gt;
 
@@ -15,19 +15,19 @@
   &lt;/thead&gt;
   &lt;tbody&gt;
     &lt;tr&gt;
-      &lt;td&gt;M&lt;/td&gt;
+      &lt;td&gt;Modified&lt;/td&gt;
       &lt;td&gt;当前cache的内容有效，数据已被修改而且与内存中的数据不一致，数据只在当前cache里存在&lt;/td&gt;
     &lt;/tr&gt;
     &lt;tr&gt;
-      &lt;td&gt;E&lt;/td&gt;
+      &lt;td&gt;Exclusive&lt;/td&gt;
       &lt;td&gt;当前cache的内容有效，数据与内存中的数据一致，数据只在当前cache里存在&lt;/td&gt;
     &lt;/tr&gt;
     &lt;tr&gt;
-      &lt;td&gt;S&lt;/td&gt;
+      &lt;td&gt;Shared&lt;/td&gt;
       &lt;td&gt;当前cache的内容有效，数据与内存中的数据一致，数据在多个cache里存在&lt;/td&gt;
     &lt;/tr&gt;
     &lt;tr&gt;
-      &lt;td&gt;I&lt;/td&gt;
+      &lt;td&gt;Invalid&lt;/td&gt;
       &lt;td&gt;当前cache无效&lt;/td&gt;
     &lt;/tr&gt;
   &lt;/tbody&gt;
@@ -35,7 +35,7 @@
 
 &lt;h3 id=&quot;状态转移&quot;&gt;状态转移&lt;/h3&gt;
 
-&lt;p&gt;MESI协议其实是一个状态机，cache的状态会跟根据外部事件的刺激而发生转移，具体的事件分为两类：处理器对cache的请求和总线对cache的请求，具体如下：&lt;/p&gt;
+&lt;p&gt;MESI协议其实是一个状态机，cache的状态会跟根据外部事件的刺激而发生转移，具体的事件分为两类：处理器对cache的请求和总线对cache的请求：&lt;/p&gt;
 
 &lt;ol&gt;
   &lt;li&gt;PrRd: 处理器请求读一个缓存块&lt;/li&gt;
@@ -599,7 +599,7 @@ org.quartz.jobStore.class: org.quartz.simpl.RAMJobStore
   &lt;li&gt;进程调用库函数read发起读取文件请求&lt;/li&gt;
   &lt;li&gt;内核检查已打开的文件列表，调用文件系统提供的read接口&lt;/li&gt;
   &lt;li&gt;找到文件对应的inode，然后计算出要读取的具体的页&lt;/li&gt;
-  &lt;li&gt;通过inode查找对应的页缓存，1）如果页缓存节点命中，则直接返回文件内容；2）如果没有对应的页缓存，则会产生一个缺页异常（page fault）。这是系统会创建新的空的页缓存并从磁盘中读取文件内容，更新页缓存，然后重复第4步&lt;/li&gt;
+  &lt;li&gt;通过inode查找对应的页缓存，1）如果页缓存节点命中，则直接返回文件内容；2）如果没有对应的页缓存，则会产生一个缺页异常（page fault）。这时系统会创建新的空的页缓存并从磁盘中读取文件内容，更新页缓存，然后重复第4步&lt;/li&gt;
   &lt;li&gt;读取文件返回&lt;/li&gt;
 &lt;/ol&gt;
 
