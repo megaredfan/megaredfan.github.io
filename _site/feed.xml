@@ -1,4 +1,45 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-10-15T15:30:55+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">cache一致性里的MESI协议</title><link href="http://localhost:4000/2019/10/13/MESI.html" rel="alternate" type="text/html" title="cache一致性里的MESI协议" /><published>2019-10-13T00:00:00+08:00</published><updated>2019-10-13T00:00:00+08:00</updated><id>http://localhost:4000/2019/10/13/MESI</id><content type="html" xml:base="http://localhost:4000/2019/10/13/MESI.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-10-20T19:06:24+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">java内存模型与volatile</title><link href="http://localhost:4000/2019/10/20/volatile.html" rel="alternate" type="text/html" title="java内存模型与volatile" /><published>2019-10-20T00:00:00+08:00</published><updated>2019-10-20T00:00:00+08:00</updated><id>http://localhost:4000/2019/10/20/volatile</id><content type="html" xml:base="http://localhost:4000/2019/10/20/volatile.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+
+&lt;p&gt;在计算机硬件结构中，为了平衡cpu和内存之间由于速度带来的差距，cpu中引入了cache作为处理器与内存之间的缓冲。在多核的处理器中，每个核都有属于自己的cache，这就带来了cache一致性的问题。前面提到的MESI协议就是用于处理cache一致性问题的一个协议，它将cache的内容分成几个状态，并要求每个核监听总线上传来的其他核发出的事件，根据这些外部事件以及自身操作cache的内部事件来维护cache的内容和状态，以达到cache一致性。但MESI协议中特定的优化有时会导致cache中存在临时的不一致的数据，所以引入了内存屏障来规避这个问题。&lt;/p&gt;
+
+&lt;p&gt;即使有cache的存在，当处理器等待cache的载入时仍然会浪费时间。所以处理器会在当前指令因等待数据阻塞时尝试执行其他不依赖这个数据的指令，来尽可能提高处理速度，这称为乱序执行。处理器会保证乱序执行的结果与顺序执行的结果一致，但仅在当前处理器范围内。如果有其他任务的计算依赖当前任务的中间结果，就有可能出现不符合预期的结果，这个问题同样可以通过内存屏障来规避。&lt;/p&gt;
+
+&lt;h2 id=&quot;java的内存模型&quot;&gt;java的内存模型&lt;/h2&gt;
+
+&lt;p&gt;java虚拟机规范中定义了java自身的内存模型，通过这个内存模型来屏蔽不同的操作系统和硬件带来的差异，达到各个平台运行效果一致的目标。java内存模型规定所有的变量都存储在主内存中，每个线程有自己的工作内存，线程在访问变量时都直接从工作内存中访问，而不能访问主内存。一个线程不能访问其他的线程的工作内存，线程之间的变量传递都需要经过主内存来完成。这里的线程、工作内存和主内存有有点类似计算机硬件结构中的处理器、cache和内存的关系。此外，java虚拟机中的即时编译中也有类似指令重排序的优化。java内存模型的介绍比较多，这里就不详细展开了。&lt;/p&gt;
+
+&lt;h2 id=&quot;volatile变量&quot;&gt;volatile变量&lt;/h2&gt;
+
+&lt;p&gt;在java中有一个用于实现单例模式的方式，叫做“双成例检查”。双成例检查利用了synchronized和volatile关键词保证了在并发执行的情况下单例模式的正确性。但是在jdk1.5以前（不包括1.5）的版本是存在问题的，其中具体的原因就是volatile关键词底层实现在jdk1.5才完全正确。&lt;/p&gt;
+
+&lt;p&gt;根据volatile的特性，如果一个变量被标记为volatile，那么它将获得两个额外的属性：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;在一个线程中对于volatile变量的修改会立即被其他线程感知到，也就是可见性。前面提到，在java内存模型中，各个线程之间的变量传递都需要先经过主内存，所以为了性能考虑，线程不会总是从主内存获取最新的变量的值，而是在特定的时机才从主内存同步最新的内容。而volatile关键词则能够强制触发其他线程同步主内存的内容。&lt;/li&gt;
+  &lt;li&gt;禁止指令重排序。对于一个普通的变量，只会保证所有依赖这个变量的地方都能获得正确的结果，而并不会保证对这个变量赋值的顺序和实际的代码执行顺序一致，比如不依赖这个变量的代码可能会被挪到之前或者之后执行，也就是“看起来就像是顺序执行一样”。而volatile关键词能够禁止指令重排序。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;在jdk1.5之前的版本，volatile并没有禁止指令重排序的作用，所以即使把变量声明为volatile也会存在volatile变量前后的代码重排序的情况，这也是在jdk1.5之前不能使用双成例检查来实现单例的原因。&lt;/p&gt;
+
+&lt;h2 id=&quot;volatile的实现&quot;&gt;volatile的实现&lt;/h2&gt;
+
+&lt;p&gt;前面提到内存屏障能够避免cache中存在过期数据以及避免乱序执行，而volatile自身也是通过内存屏障来实现上述的2个特性的。&lt;/p&gt;
+
+&lt;p&gt;内存屏障通常分为几个级别：读写（保证屏障前的读写操作都早于屏障后的读写操作）、读（只保证读操作）以及写（只保证写操作）。不同体系结构的硬件对内存屏障的实现都不一样，比如在x86中内存屏障的指令是：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;lfence 读操作屏障&lt;/li&gt;
+  &lt;li&gt;sfence 写操作屏障&lt;/li&gt;
+  &lt;li&gt;mfence 读写操作屏障&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;而当我们把实际的java字节码反汇编成汇编指令时，可以看到并没有这几个屏障，而是在写入volatile变量之后添加一条&lt;code class=&quot;highlighter-rouge&quot;&gt;lock addl $0, 0 (%esp)&lt;/code&gt;指令。lock指令的作用是可以使当前处理器的cache内容被写入内存，同时使其他处理器的cache失效，这种操作相当于将本线程的工作内存的内容同步到主内存，也就保证了可见性。而在指令重排序的角度，由于lock指令之前的操作的结果都同步到了内存，也就相当于lock之前的操作都已经完成，这样就相当于“屏障后边的操作无法穿越到屏障前面”的效果。&lt;/p&gt;
+
+&lt;h3 id=&quot;lock实际的作用&quot;&gt;lock实际的作用&lt;/h3&gt;
+
+&lt;p&gt;可以看到，lock实际上具备了内存屏障的语义，那lock具体的作用是什么呢。lock是一个指令前缀，在它后面的指令会保证原子执行。其实现方式就是在指令执行期间设置处理器的&lt;code class=&quot;highlighter-rouge&quot;&gt;LOCK#&lt;/code&gt;信号，这样就能确保处理器能够互斥的操作内存（通过锁定总线来实现），当指令执行完毕之后&lt;code class=&quot;highlighter-rouge&quot;&gt;LOCK#信号&lt;/code&gt;会自动取消。从intel奔腾Pro处理器开始，当要锁定的内存地址已经被加载到cache时，会直接锁定对应的cache而不是设置&lt;code class=&quot;highlighter-rouge&quot;&gt;LOCK#信号&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;也就是说，volatile的实现中通过lock前缀+一条空的指令来锁定cache，实现了可见性和禁止重排序的功能。至于为什么要用&lt;code class=&quot;highlighter-rouge&quot;&gt;addl $0, 0 (%esp)&lt;/code&gt;配合lock前缀是因为lock前缀只支持内存操作类的指令，所以不能直接用lock前缀加空指令nop。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">cache一致性里的MESI协议</title><link href="http://localhost:4000/2019/10/13/MESI.html" rel="alternate" type="text/html" title="cache一致性里的MESI协议" /><published>2019-10-13T00:00:00+08:00</published><updated>2019-10-13T00:00:00+08:00</updated><id>http://localhost:4000/2019/10/13/MESI</id><content type="html" xml:base="http://localhost:4000/2019/10/13/MESI.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
 
 &lt;p&gt;在有多个核的处理器的处理器中，每个核都有自己的cache，而如何确保多个核的cache内容的一致则是一个很容易遇到的问题，MESI协议就是一个专门用来解决cache一致性的协议。很多处理器使用的都是MESI协议或者MESI协议的变体，而MESI协议其实也是MSI协议的变种。MESI协议采用了回写（write-back）的策略来更新cache，使得其性能进一步提高，但也带来了额外的风险，回写带来的问题可以在编写程序时使用内存屏障来规避。&lt;/p&gt;
 
@@ -1154,171 +1195,4 @@ org.quartz.jobStore.class: org.quartz.simpl.RAMJobStore
 
 &lt;p&gt;在java 1.2之后的版本，在java中创建的&lt;code class=&quot;highlighter-rouge&quot;&gt;Thread&lt;/code&gt;，在linux平台下实际上就是&lt;code class=&quot;highlighter-rouge&quot;&gt;Pthread&lt;/code&gt;。可以看出java中Thread的各个属性与Pthread比较类似（但是没有detached属性）。在同步方面，java有自己的同步机制（&lt;code class=&quot;highlighter-rouge&quot;&gt;synchronized&lt;/code&gt;关键字），并没有直接使用Pthread中的同步原语。java 1.5之后引入的&lt;code class=&quot;highlighter-rouge&quot;&gt;java.util.concurrent.locks&lt;/code&gt;中的库函数，则与Pthread同步原语有更多的相似的地方。&lt;/p&gt;
 
-&lt;p&gt;另外，java中&lt;code class=&quot;highlighter-rouge&quot;&gt;Object&lt;/code&gt;的&lt;code class=&quot;highlighter-rouge&quot;&gt;wait/notify/notifyAll&lt;/code&gt;，&lt;code class=&quot;highlighter-rouge&quot;&gt;Condition&lt;/code&gt;的&lt;code class=&quot;highlighter-rouge&quot;&gt;await/signal&lt;/code&gt;必须要在同步块中，其道理跟条件变量一样，都是为了避免信号丢失的问题。&lt;/p&gt;</content><author><name></name></author><summary type="html">概述</summary></entry><entry><title type="html">Unix域协议</title><link href="http://localhost:4000/2019/06/28/Unix-Domain-Protol.html" rel="alternate" type="text/html" title="Unix域协议" /><published>2019-06-28T00:00:00+08:00</published><updated>2019-06-28T00:00:00+08:00</updated><id>http://localhost:4000/2019/06/28/Unix%20Domain%20Protol</id><content type="html" xml:base="http://localhost:4000/2019/06/28/Unix-Domain-Protol.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
-
-&lt;p&gt;如果我们的目的仅是在同一台主机上的不同进程之间进行通信，那么除了TCP/UDP套接字以外我们还可以使用Unix域协议。Unix域协议是IPC（进程间通信）的方式之一，Unix域协议使用套接字API，支持同一台主机的不同进程之间进行通信。直观上来说Unix域协议有点类似使用本地回环接口（lo）的TCP/UDP。但是Unix域协议比起TCP/UDP套接字还有几个其他优势：1.比起TCP协议通常要更快；2.支持在同一台主机上的不同进程之间传递描述符；3.支持传递客户端凭证。&lt;/p&gt;
-
-&lt;p&gt;使用Unix域协议的套接字（以下简称uds[unix domain socket]）用到的API与TCP/UDP套接字API完全一致，即服务端需要进行bind、listen、accpet等操作才能读写，客户端需要先connect才能进行读写。与TCP/UDP套接字不同的一点是uds绑定的地址是一个文件系统的绝对路径，比如”/tmp/myuds”，而TCP/UDP套接字使用的地址则包含了地址和端口号。uds使用的路径并不是普通的文件，需要和uds关联才能对其进行读写。Unix域套接字有两种类型，字节流套接字（类似TCP）和数据报套接字（类似UDP）。&lt;/p&gt;
-
-&lt;h2 id=&quot;相关api&quot;&gt;相关API&lt;/h2&gt;
-
-&lt;h3 id=&quot;unix域协议的地址结构&quot;&gt;unix域协议的地址结构&lt;/h3&gt;
-
-&lt;p&gt;前面提到uds并不使用地址加端口号作为协议地址，而是用一个文件路径来作为地址，所以uds使用的地址结构也有一点不同：&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt;  &lt;span class=&quot;n&quot;&gt;sockaddr_un&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;sa_family_t&lt;/span&gt;     &lt;span class=&quot;n&quot;&gt;sun_family&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;     &lt;span class=&quot;cm&quot;&gt;/* 协议族，通常为AF_UNIX或者AF_LOCAL */&lt;/span&gt;
-    &lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt;            &lt;span class=&quot;n&quot;&gt;sun_path&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;104&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;  &lt;span class=&quot;cm&quot;&gt;/* 地址路径 */&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;uds使用的地址结构叫做sockaddr_un，后面的un即unix，而TCP/UDP套接字使用的地址结构叫做sockaddr_in，in表示internet。&lt;/p&gt;
-&lt;blockquote&gt;
-  &lt;blockquote&gt;
-    &lt;p&gt;unix域协议虽然名字里有unix，但它是POSIX的一部分，并不与unix系统强绑定，POSIX将unix域协议重新命名为“本地IPC”，把AF_UNIX改为了AF_LOCAL，但更多的时候我们还是称其为unix域协议，我们常见的linux和macos都支持unix域协议。&lt;/p&gt;
-  &lt;/blockquote&gt;
-&lt;/blockquote&gt;
-
-&lt;h3 id=&quot;unix域协议配合套接字api&quot;&gt;unix域协议配合套接字API&lt;/h3&gt;
-
-&lt;p&gt;unix域协议的使用方式与TCP/UDP套接字的方式类似，只需要将协议族替换为AF_LOCAL（或者AF_UNIX），然后将地址替换为sockaddr_un即可。下面是一个使用uds进行bind，然后通过getsockname获取套接字名称并打印的例子：&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cp&quot;&gt;#include &quot;unp.h&quot;
-&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;main&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;argc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;**&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;argv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;                 &lt;span class=&quot;n&quot;&gt;sockfd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;socklen_t&lt;/span&gt;           &lt;span class=&quot;n&quot;&gt;len&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sockaddr_un&lt;/span&gt;  &lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-
-    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;argc&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;err_quit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;usage: unixbind &amp;lt;pathname&amp;gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-
-    &lt;span class=&quot;c1&quot;&gt;//先调用socket创建套接字&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;sockfd&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Socket&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;AF_LOCAL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SOCK_STREAM&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;c1&quot;&gt;//对已存在的路径进行bind会导致失败，所以预先调用unlink删除文件&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;unlink&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;argv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]);&lt;/span&gt;
-    &lt;span class=&quot;c1&quot;&gt;//调用bzero初始化地址结构体&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;bzero&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;
-    &lt;span class=&quot;c1&quot;&gt;//设置协议族为AF_LOCAL，AF_UNIX也可以&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sun_family&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;AF_LOCAL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;c1&quot;&gt;//设置地址的文件路径&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;strncpy&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sun_path&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;argv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;],&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sun_path&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;c1&quot;&gt;//调用bind，通过SUN_LEN计算bind所需的长度这个参数&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;Bind&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sockfd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;SA&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SUN_LEN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;
-
-    &lt;span class=&quot;n&quot;&gt;len&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;c1&quot;&gt;//获得socket的名字&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;Getsockname&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sockfd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;SA&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;len&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;printf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;bound name = %s, returned len = %d&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sun_path&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;len&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;exit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;执行上面的程序，我们就可以看到控制台会有类似这样的输出：&lt;/p&gt;
-
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;bound name = xxx, returned len = yy
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;程序会输出我们绑定的路径以及对应的socket长度，这时候也可以看到对应路径也自动创建了同名的文件。如果用&lt;code class=&quot;highlighter-rouge&quot;&gt;ls -lF&lt;/code&gt;命令查看，可以看到对应的文件类型为socket。&lt;/p&gt;
-
-&lt;h3 id=&quot;socketpair&quot;&gt;socketpair&lt;/h3&gt;
-
-&lt;p&gt;socketpair函数可以创建两个连接起来的unix域套接字：&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cp&quot;&gt;#include &amp;lt;sys/socket.h&amp;gt;
-&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;socketpair&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;family&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;type&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;protocol&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sockfd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]);&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;socketpair的参数中family必须为AF_LOCAL，protocol必须为0，type可以为SOCK_STREAM或者SOCK_DGRAM，新创建的两个套接字描述符将作为sockfd[0]和sockfd[1]返回。&lt;/p&gt;
-
-&lt;h3 id=&quot;套接字函数&quot;&gt;套接字函数&lt;/h3&gt;
-
-&lt;p&gt;使用uds时，套接字函数中存在一些差异和限制，具体列举如下：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;有bind创建的路径名默认的权限为0777（所有者、组用户和其他用户都可读、可写、可执行），并按照当前umask进行修正。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;blockquote&gt;
-  &lt;blockquote&gt;
-    &lt;p&gt;umask和chmod中的权限配合使用，是权限的“补码”。比如在我的电脑上umask的值是022，所以uds创建出来的路径权限为777-022=755，表示所有者可读可写可执行，组用户和其他用户可读可写。而通常新创建的目录默认的权限为0777，新创建的文件默认的权限为0666.&lt;/p&gt;
-  &lt;/blockquote&gt;
-&lt;/blockquote&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;uds绑定的路径应使用绝对路径。避免使用相对路径的原因是相对路径的解析会依赖调用者的当前路径。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;blockquote&gt;
-  &lt;blockquote&gt;
-    &lt;p&gt;POSIX声称使用相对路径绑定到uds将导致不可预计的结果&lt;/p&gt;
-  &lt;/blockquote&gt;
-&lt;/blockquote&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;调用conenct时传入的路径必须是和一个已经打开的uds绑定的路径。并且两个套接字的type（数据报或者字节流）必须相同。出错的条件有几个：a)路径已存在，但不是一个uds;b)路径已存在且是一个uds，但是没有与之关联的打开的描述符;c)路径已存在并且是一个打开的uds，但是类型不同。&lt;/li&gt;
-  &lt;li&gt;调用connect连接一个uds涉及的权限检查等同于调用open以只读模式访问对应路径。&lt;/li&gt;
-  &lt;li&gt;unix域字节流套接字与TCP套接字类似，它们都提供无记录边界的字节流接口。&lt;/li&gt;
-  &lt;li&gt;如果对一个uds进行connect时发现监听套接字的队列已满，调用会立即返回一个ECONNECTREFUSED错误；而TCP监听套接字在队列满时则会忽略新到达的SYNC，进而连接发起端发起端进行重试。&lt;/li&gt;
-  &lt;li&gt;unix域数据报套接字与UDP套接字类似，它们都提供保留记录边界的不可靠的数据报服务。&lt;/li&gt;
-  &lt;li&gt;在未绑定的uds上发送数据不会自动为其绑定一个路径，这一点不同于UDP套接字：在一个未绑定的UDP套接字上发送数据会为其绑定一个临时端口。这意味着除非数据报发送端已经绑定到一个路径，否则数据报接收端无法发回应答数据报。类似的，对于uds的connect调用不会为其绑定一个路径，这一点不同于TCP/UDP。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&quot;什么场景下可以选择uds&quot;&gt;什么场景下可以选择uds&lt;/h2&gt;
-
-&lt;h3 id=&quot;本机通信&quot;&gt;本机通信&lt;/h3&gt;
-
-&lt;p&gt;当我们需要在本机通信时，可以使用uds来代替本地回环接口。uds相比TCP/UDP套接字性能会更好，因为它不需要经过网络协议栈，省去了各种解析和应答等步骤，而是直接在内核拷贝传递数据。比如最近很热的service mesh，业务进程和sidecar就可以通过uds来通信。&lt;/p&gt;
-
-&lt;h3 id=&quot;传递描述符&quot;&gt;传递描述符&lt;/h3&gt;
-
-&lt;p&gt;当我们需要传递描述符时，通常可以使用方法有：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;fork调用返回以后，子进程共享父进程的所有描述符&lt;/li&gt;
-  &lt;li&gt;exec调用执行后，所有的描述符通常保持打开状态&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;第一种方式里，我们可以把描述符从父进程传递到子进程，然而我们也可能需要在子进程传递描述符到父进程。unix系统提供了用于从一个进程向其他任意进程传递描述符的方式，而这两个进程不需要有任何亲缘关系。这种技术要求在两个进程之间创建一个uds，然后使用sendmsg通过这个uds发送特殊结构的消息。这个特殊的消息会由内核处理，把打开的描述符从发送进程传递到接收进程。&lt;/p&gt;
-
-&lt;p&gt;通过uds传递描述符的步骤具体如下：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;创建一个字节流或数据报的uds。这可以通过调用socketpair然后父子进程之间的连接；也可以使用套接字API。通常建议使用字节流套接字而不是数据报套接字，因为使用数据报套接字并没有什么好处，反而还存在数据报被丢弃的可能。&lt;/li&gt;
-  &lt;li&gt;发送端打开描述符。uds可以传递各种类型的描述符，而不是仅包括文件描述符。&lt;/li&gt;
-  &lt;li&gt;发送端进程创建一个msghdr的结构，其中含有待传递的描述符，然后调用sendmsg将其发送出去。发送一个描述符会使其引用计数加一。&lt;/li&gt;
-  &lt;li&gt;接收端进程调用recvmsg在创建的uds上接收描述符。这个过程会在接收进程创建一个新的描述符，然后将其指向和发送进程发送的描述符指向的同一个内核文件选项。所以接收端收到的描述符不同于发送端发送端描述符时很正常的。&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;msghdr的结构定义：&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cm&quot;&gt;/*
- * [XSI] Message header for recvmsg and sendmsg calls.
- * Used value-result for recvmsg, value only for sendmsg.
- */&lt;/span&gt;
-&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;msghdr&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-	&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;		&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;msg_name&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;cm&quot;&gt;/* [XSI] optional address */&lt;/span&gt;
-	&lt;span class=&quot;n&quot;&gt;socklen_t&lt;/span&gt;	&lt;span class=&quot;n&quot;&gt;msg_namelen&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;cm&quot;&gt;/* [XSI] size of address */&lt;/span&gt;
-	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt;		&lt;span class=&quot;n&quot;&gt;iovec&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;msg_iov&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;cm&quot;&gt;/* [XSI] scatter/gather array */&lt;/span&gt;
-	&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;		&lt;span class=&quot;n&quot;&gt;msg_iovlen&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;cm&quot;&gt;/* [XSI] # elements in msg_iov */&lt;/span&gt;
-	&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;		&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;msg_control&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;cm&quot;&gt;/* [XSI] ancillary data, see below */&lt;/span&gt;
-	&lt;span class=&quot;n&quot;&gt;socklen_t&lt;/span&gt;	&lt;span class=&quot;n&quot;&gt;msg_controllen&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;cm&quot;&gt;/* [XSI] ancillary data buffer len */&lt;/span&gt;
-	&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;		&lt;span class=&quot;n&quot;&gt;msg_flags&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;cm&quot;&gt;/* [XSI] flags on received message */&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;具体的例子就暂时不列举了。&lt;/p&gt;
-
-&lt;h3 id=&quot;验证发送者的身份&quot;&gt;验证发送者的身份&lt;/h3&gt;
-
-&lt;p&gt;可以用uds传递的另一种辅助数据就是用户凭证。用户凭证的数据结构在不同的操作系统中并不一致，这里就不再详细介绍了。&lt;/p&gt;
-
-&lt;h3 id=&quot;uds的优势&quot;&gt;uds的优势&lt;/h3&gt;
-
-&lt;p&gt;uds是客户端和服务端在同一台主机上的IPC方法之一，与其他IPC方法（pipe，共享内存等）相比，uds的优势在于其使用的API几乎等同于网络通讯中使用的API，与客户端和服务端在同一台主机上的TCP相比，unix域字节流套接字的性能要更优。&lt;/p&gt;
-
-&lt;p&gt;此外，uds还支持传递其他辅助数据，比如描述符和用户凭证。&lt;/p&gt;
-
-&lt;h2 id=&quot;java中的uds&quot;&gt;java中的uds&lt;/h2&gt;
-
-&lt;p&gt;java中并不支持直接使用uds，可能是因为java标榜跨平台，而uds则只在部分操作系统中才能使用。要在java中使用uds，通常需要使用第三方提供的类库，比如著名的网络通讯组件netty就提供了uds通讯的支持。&lt;/p&gt;</content><author><name></name></author><summary type="html">简介</summary></entry></feed>
+&lt;p&gt;另外，java中&lt;code class=&quot;highlighter-rouge&quot;&gt;Object&lt;/code&gt;的&lt;code class=&quot;highlighter-rouge&quot;&gt;wait/notify/notifyAll&lt;/code&gt;，&lt;code class=&quot;highlighter-rouge&quot;&gt;Condition&lt;/code&gt;的&lt;code class=&quot;highlighter-rouge&quot;&gt;await/signal&lt;/code&gt;必须要在同步块中，其道理跟条件变量一样，都是为了避免信号丢失的问题。&lt;/p&gt;</content><author><name></name></author><summary type="html">概述</summary></entry></feed>

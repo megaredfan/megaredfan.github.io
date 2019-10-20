@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>java内存模型与volatile | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="java内存模型与volatile" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="前言" />
+<meta property="og:description" content="前言" />
+<link rel="canonical" href="http://localhost:4000/2019/10/20/volatile.html" />
+<meta property="og:url" content="http://localhost:4000/2019/10/20/volatile.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2019-10-20T00:00:00+08:00" />
+<script type="application/ld+json">
+{"mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/10/20/volatile.html"},"url":"http://localhost:4000/2019/10/20/volatile.html","headline":"java内存模型与volatile","dateModified":"2019-10-20T00:00:00+08:00","datePublished":"2019-10-20T00:00:00+08:00","description":"前言","@type":"BlogPosting","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">java内存模型与volatile</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2019-10-20T00:00:00+08:00" itemprop="datePublished">Oct 20, 2019
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="前言">前言</h2>
+
+<p>在计算机硬件结构中，为了平衡cpu和内存之间由于速度带来的差距，cpu中引入了cache作为处理器与内存之间的缓冲。在多核的处理器中，每个核都有属于自己的cache，这就带来了cache一致性的问题。前面提到的MESI协议就是用于处理cache一致性问题的一个协议，它将cache的内容分成几个状态，并要求每个核监听总线上传来的其他核发出的事件，根据这些外部事件以及自身操作cache的内部事件来维护cache的内容和状态，以达到cache一致性。但MESI协议中特定的优化有时会导致cache中存在临时的不一致的数据，所以引入了内存屏障来规避这个问题。</p>
+
+<p>即使有cache的存在，当处理器等待cache的载入时仍然会浪费时间。所以处理器会在当前指令因等待数据阻塞时尝试执行其他不依赖这个数据的指令，来尽可能提高处理速度，这称为乱序执行。处理器会保证乱序执行的结果与顺序执行的结果一致，但仅在当前处理器范围内。如果有其他任务的计算依赖当前任务的中间结果，就有可能出现不符合预期的结果，这个问题同样可以通过内存屏障来规避。</p>
+
+<h2 id="java的内存模型">java的内存模型</h2>
+
+<p>java虚拟机规范中定义了java自身的内存模型，通过这个内存模型来屏蔽不同的操作系统和硬件带来的差异，达到各个平台运行效果一致的目标。java内存模型规定所有的变量都存储在主内存中，每个线程有自己的工作内存，线程在访问变量时都直接从工作内存中访问，而不能访问主内存。一个线程不能访问其他的线程的工作内存，线程之间的变量传递都需要经过主内存来完成。这里的线程、工作内存和主内存有有点类似计算机硬件结构中的处理器、cache和内存的关系。此外，java虚拟机中的即时编译中也有类似指令重排序的优化。java内存模型的介绍比较多，这里就不详细展开了。</p>
+
+<h2 id="volatile变量">volatile变量</h2>
+
+<p>在java中有一个用于实现单例模式的方式，叫做“双成例检查”。双成例检查利用了synchronized和volatile关键词保证了在并发执行的情况下单例模式的正确性。但是在jdk1.5以前（不包括1.5）的版本是存在问题的，其中具体的原因就是volatile关键词底层实现在jdk1.5才完全正确。</p>
+
+<p>根据volatile的特性，如果一个变量被标记为volatile，那么它将获得两个额外的属性：</p>
+
+<ol>
+  <li>在一个线程中对于volatile变量的修改会立即被其他线程感知到，也就是可见性。前面提到，在java内存模型中，各个线程之间的变量传递都需要先经过主内存，所以为了性能考虑，线程不会总是从主内存获取最新的变量的值，而是在特定的时机才从主内存同步最新的内容。而volatile关键词则能够强制触发其他线程同步主内存的内容。</li>
+  <li>禁止指令重排序。对于一个普通的变量，只会保证所有依赖这个变量的地方都能获得正确的结果，而并不会保证对这个变量赋值的顺序和实际的代码执行顺序一致，比如不依赖这个变量的代码可能会被挪到之前或者之后执行，也就是“看起来就像是顺序执行一样”。而volatile关键词能够禁止指令重排序。</li>
+</ol>
+
+<p>在jdk1.5之前的版本，volatile并没有禁止指令重排序的作用，所以即使把变量声明为volatile也会存在volatile变量前后的代码重排序的情况，这也是在jdk1.5之前不能使用双成例检查来实现单例的原因。</p>
+
+<h2 id="volatile的实现">volatile的实现</h2>
+
+<p>前面提到内存屏障能够避免cache中存在过期数据以及避免乱序执行，而volatile自身也是通过内存屏障来实现上述的2个特性的。</p>
+
+<p>内存屏障通常分为几个级别：读写（保证屏障前的读写操作都早于屏障后的读写操作）、读（只保证读操作）以及写（只保证写操作）。不同体系结构的硬件对内存屏障的实现都不一样，比如在x86中内存屏障的指令是：</p>
+
+<ul>
+  <li>lfence 读操作屏障</li>
+  <li>sfence 写操作屏障</li>
+  <li>mfence 读写操作屏障</li>
+</ul>
+
+<p>而当我们把实际的java字节码反汇编成汇编指令时，可以看到并没有这几个屏障，而是在写入volatile变量之后添加一条<code class="highlighter-rouge">lock addl $0, 0 (%esp)</code>指令。lock指令的作用是可以使当前处理器的cache内容被写入内存，同时使其他处理器的cache失效，这种操作相当于将本线程的工作内存的内容同步到主内存，也就保证了可见性。而在指令重排序的角度，由于lock指令之前的操作的结果都同步到了内存，也就相当于lock之前的操作都已经完成，这样就相当于“屏障后边的操作无法穿越到屏障前面”的效果。</p>
+
+<h3 id="lock实际的作用">lock实际的作用</h3>
+
+<p>可以看到，lock实际上具备了内存屏障的语义，那lock具体的作用是什么呢。lock是一个指令前缀，在它后面的指令会保证原子执行。其实现方式就是在指令执行期间设置处理器的<code class="highlighter-rouge">LOCK#</code>信号，这样就能确保处理器能够互斥的操作内存（通过锁定总线来实现），当指令执行完毕之后<code class="highlighter-rouge">LOCK#信号</code>会自动取消。从intel奔腾Pro处理器开始，当要锁定的内存地址已经被加载到cache时，会直接锁定对应的cache而不是设置<code class="highlighter-rouge">LOCK#信号</code>。</p>
+
+<p>也就是说，volatile的实现中通过lock前缀+一条空的指令来锁定cache，实现了可见性和禁止重排序的功能。至于为什么要用<code class="highlighter-rouge">addl $0, 0 (%esp)</code>配合lock前缀是因为lock前缀只支持内存操作类的指令，所以不能直接用lock前缀加空指令nop。</p>
+
+  </div><a class="u-url" href="/2019/10/20/volatile.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
