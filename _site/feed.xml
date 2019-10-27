@@ -1,4 +1,82 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-10-20T19:06:24+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">java内存模型与volatile</title><link href="http://localhost:4000/2019/10/20/volatile.html" rel="alternate" type="text/html" title="java内存模型与volatile" /><published>2019-10-20T00:00:00+08:00</published><updated>2019-10-20T00:00:00+08:00</updated><id>http://localhost:4000/2019/10/20/volatile</id><content type="html" xml:base="http://localhost:4000/2019/10/20/volatile.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-10-27T18:44:59+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">TCP拥塞控制</title><link href="http://localhost:4000/2019/10/27/TCP-congestion.html" rel="alternate" type="text/html" title="TCP拥塞控制" /><published>2019-10-27T00:00:00+08:00</published><updated>2019-10-27T00:00:00+08:00</updated><id>http://localhost:4000/2019/10/27/TCP%20congestion</id><content type="html" xml:base="http://localhost:4000/2019/10/27/TCP-congestion.html">&lt;h2 id=&quot;tcp拥塞控制的起源&quot;&gt;TCP拥塞控制的起源&lt;/h2&gt;
+
+&lt;p&gt;1986年，从LBL到UC Berkeley的网络吞吐因为拥塞出现了从32Kbps到40bps的急剧下降，Van Jacobson 在1988年的论文《Congestion Avoidance and Control》从这个问题出发，提出了数据包守恒定律以及慢启动、拥塞控制和快重传的算法，在1990年又提出了快恢复算法。&lt;/p&gt;
+
+&lt;h2 id=&quot;数据包守恒原则&quot;&gt;数据包守恒原则&lt;/h2&gt;
+
+&lt;p&gt;在一个运行平稳的TCP连接中流动的数据包应该是守恒的，意思是当只有旧的数据包被成功传输到对端后，新的数据包才能加入到连接中。在TCP协议中，我们可以使用ack来作为判断数据包是否已经成功到达对端的依据，就是说当发送端收到good ack（大于发送端当前已经收到的最大ack的ack）时，它就可以发送新的数据包了。这种根据ack来决定继续发送数据包的机制就叫做self clocking（也叫做ack clocking）。&lt;/p&gt;
+
+&lt;h2 id=&quot;慢启动&quot;&gt;慢启动&lt;/h2&gt;
+
+&lt;p&gt;通过数据包守恒原则，我们知道可以通过ack来决定是否发送新的数据，而要收到ack就要先发送数据。慢启动就开始发送数据时的行为控制。慢启动的总体思路就是从一个很低的初始值开始，逐渐增加数据发送的速度，直到达到超时或者丢包为止。慢启动的实现思路如下：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;每个连接维护一个变量cwnd（congestion window）&lt;/li&gt;
+  &lt;li&gt;当连接刚建立或者遇到丢包时，将cwnd设置为1，单位为MSS（maximum segment size）&lt;/li&gt;
+  &lt;li&gt;每收到一个新的ack，cwnd加一&lt;/li&gt;
+  &lt;li&gt;当发送数据时，能够发送的数据包数量为min(cwnd,awnd)，awnd为接收端的滑动窗口大小(reciver’s advertised window)&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;可以预见，在没有出现超时或者丢包时，慢启动增长的速度是指数级的，所以慢启动实际上并没有那么“慢”，“慢”是慢在它的起点只有1个MSS。&lt;/p&gt;
+
+&lt;h2 id=&quot;拥塞避免&quot;&gt;拥塞避免&lt;/h2&gt;
+
+&lt;p&gt;前面提到，慢启动的目的是逐渐增加发送速度进行试探，直到出现网络拥塞，而真正出现拥塞时又该怎么做呢，就是“拥塞避免”所做的事情了。拥塞避免主要由两部分组成：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;一个判断当前网路出现拥塞的机制&lt;/li&gt;
+  &lt;li&gt;在出现拥塞时降低发送速度的机制&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;而拥塞避免的实现思路如下：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;当出现超时时，将cwnd设置为当前值的一半（即当出现超时时就认为是出现了拥塞）&lt;/li&gt;
+  &lt;li&gt;每收到一个新的ack，cwnd加1/cwnd（即当传输成功cwnd个数据包时，窗口大小加一，也就是随着RTT线性增加）&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;这里的两个变更cwnd的行为通常称为“乘法减小”和“加法增大”。&lt;/p&gt;
+
+&lt;h2 id=&quot;结合慢启动和拥塞避免的算法&quot;&gt;结合慢启动和拥塞避免的算法&lt;/h2&gt;
+
+&lt;p&gt;值得注意的是，慢启动和拥塞避免实际上是两个不同的算法，它们一个用于试探网络资源的上限，另一个用于资源使用率达到或者接近上限时的行为。在1988年的论文中给出了一个结合了慢启动和拥塞避免的算法，具体实现思路如下：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;发送端维持两个变量：拥塞窗口cwnd（congestion window）和慢启动门限ssthresh（slow start threshold），通过这两个变量来决定当前应该执行慢启动还是拥塞避免算法。&lt;/li&gt;
+  &lt;li&gt;发送数据时，能够发送的数据包数量为min(cwnd,awnd)&lt;/li&gt;
+  &lt;li&gt;出现超时时，ssthresh更新为cwnd/2（但不能小于2），cwnd设置为1&lt;/li&gt;
+  &lt;li&gt;每收到一个新的zck，发送端的行为是:
+    &lt;ul&gt;
+      &lt;li&gt;如果&lt;code class=&quot;highlighter-rouge&quot;&gt;cwnd&amp;lt;ssthresh&lt;/code&gt;，&lt;code class=&quot;highlighter-rouge&quot;&gt;cwnd+=1&lt;/code&gt;（慢启动阶段，窗口指数级别增加）&lt;/li&gt;
+      &lt;li&gt;否则&lt;code class=&quot;highlighter-rouge&quot;&gt;cwnd+=1/cwdn&lt;/code&gt;（拥塞避免阶段，窗口线性增加）&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&quot;快重传&quot;&gt;快重传&lt;/h2&gt;
+
+&lt;p&gt;快速重传的目的就是让发送端尽快感知到丢包。TCP发送方在每发送一个分段时会启动一个计时器，如果相应的数据包确认没在特定时间内被送回，发送方就假设这个分段在网络上丢失了，需要重发。这也是TCP用来估计RTT的测量方法。&lt;/p&gt;
+
+&lt;h3 id=&quot;重复确认&quot;&gt;重复确认&lt;/h3&gt;
+
+&lt;p&gt;重复确认基于以下过程：如果接收方接收到一个数据分段，就会将该分段的序列号加上数据字节长的值，作为分段确认的确认号，发送回发送方，表示期望发送方发送下一个序列号的分段。但是如果接收方提前收到更大的序列号的分段，或者说接收到无序到达的分段，接收方需要&lt;strong&gt;立即&lt;/strong&gt;使用之前的确认号发送分段确认。此时如果发送方收到接收方相同确认号的分段确认超过1次，并且该对应序列号的分段超时计时器仍没超时的话，则这就是出现重复确认，需要进入快速重传。&lt;/p&gt;
+
+&lt;p&gt;快送重传就是基于以下机制：如果假设重复阈值为3，当发送方收到4次相同确认号的分段确认（第1次收到确认期望序列号，加3次重复的期望序列号确认）时，则可以认为继续发送更高序列号的分段将会被接受方丢弃，而且会无法有序送达。发送方应该忽略超时计时器的等待重发，立即重发重复分段确认中确认号对应序列号的分段。&lt;/p&gt;
+
+&lt;h2 id=&quot;tcp拥塞控制的各个实现&quot;&gt;TCP拥塞控制的各个实现&lt;/h2&gt;
+
+&lt;p&gt;这里先列举各个TCP拥塞控制的实现，具体接受后续再补上了。&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;TCP Tahoe/Reno&lt;/li&gt;
+  &lt;li&gt;TCP Vegas&lt;/li&gt;
+  &lt;li&gt;TCP New Reno&lt;/li&gt;
+  &lt;li&gt;TCP BIC/CUBIC&lt;/li&gt;
+  &lt;li&gt;TCP Westwood/Westwood+&lt;/li&gt;
+  &lt;li&gt;Compound TCP&lt;/li&gt;
+  &lt;li&gt;TCP PRR&lt;/li&gt;
+  &lt;li&gt;TCP BBR&lt;/li&gt;
+&lt;/ul&gt;</content><author><name></name></author><summary type="html">TCP拥塞控制的起源</summary></entry><entry><title type="html">java内存模型与volatile</title><link href="http://localhost:4000/2019/10/20/volatile.html" rel="alternate" type="text/html" title="java内存模型与volatile" /><published>2019-10-20T00:00:00+08:00</published><updated>2019-10-20T00:00:00+08:00</updated><id>http://localhost:4000/2019/10/20/volatile</id><content type="html" xml:base="http://localhost:4000/2019/10/20/volatile.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
 
 &lt;p&gt;在计算机硬件结构中，为了平衡cpu和内存之间由于速度带来的差距，cpu中引入了cache作为处理器与内存之间的缓冲。在多核的处理器中，每个核都有属于自己的cache，这就带来了cache一致性的问题。前面提到的MESI协议就是用于处理cache一致性问题的一个协议，它将cache的内容分成几个状态，并要求每个核监听总线上传来的其他核发出的事件，根据这些外部事件以及自身操作cache的内部事件来维护cache的内容和状态，以达到cache一致性。但MESI协议中特定的优化有时会导致cache中存在临时的不一致的数据，所以引入了内存屏障来规避这个问题。&lt;/p&gt;
 
@@ -943,256 +1021,4 @@ org.quartz.jobStore.class: org.quartz.simpl.RAMJobStore
 
 &lt;h3 id=&quot;热点的发现&quot;&gt;热点的发现&lt;/h3&gt;
 
-&lt;p&gt;热点的发现可以通过统计的方式实现。我们可以在代理层周期统计每个key的访问情况，当超过指定阈值时key就成为了热点key。&lt;/p&gt;</content><author><name></name></author><summary type="html">redis简介</summary></entry><entry><title type="html">POSIX Thread</title><link href="http://localhost:4000/2019/07/07/Thread.html" rel="alternate" type="text/html" title="POSIX Thread" /><published>2019-07-07T00:00:00+08:00</published><updated>2019-07-07T00:00:00+08:00</updated><id>http://localhost:4000/2019/07/07/Thread</id><content type="html" xml:base="http://localhost:4000/2019/07/07/Thread.html">&lt;h2 id=&quot;概述&quot;&gt;概述&lt;/h2&gt;
-
-&lt;p&gt;在传统的unix模型中，当一个进程需要另一个实体来完成某项任务时，它就&lt;code class=&quot;highlighter-rouge&quot;&gt;fork&lt;/code&gt;一个子进程出来处理，比如在一个网络服务器程序中，父进程&lt;code class=&quot;highlighter-rouge&quot;&gt;accept&lt;/code&gt;一个连接，然后&lt;code class=&quot;highlighter-rouge&quot;&gt;fork&lt;/code&gt;一个子进程，由该子进程处理与连接对端的客户端之间的通信。&lt;/p&gt;
-
-&lt;p&gt;尽管这种范式很久以来一直用得很好，但是&lt;code class=&quot;highlighter-rouge&quot;&gt;fork&lt;/code&gt;调用却存在一些问题：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;fork&lt;/code&gt;是昂贵的。&lt;code class=&quot;highlighter-rouge&quot;&gt;fork&lt;/code&gt;要把父进程的内存映像复制到子进程中，并在子进程中复制所有描述符。当前的实现使用写时复制（COW）的技术，来避免子进程切实需要自己的副本之前把父进程的数据复制到子进程。然而即使有这样的优化措施，&lt;code class=&quot;highlighter-rouge&quot;&gt;fork&lt;/code&gt;仍然是昂贵的。&lt;/li&gt;
-  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;fork&lt;/code&gt;返回之后，复制进程需要通过进程间通信（IPC）来传递信息。从父进程传递信息到子进程相当容易，因为子进程将从父进程的数据空间和描述符的副本开始运行，然而从子进程往父进程传递消息却比较费力。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;线程有助于解决这两个问题。线程有时称为轻量进程（lightweight process），因为线程比进程更轻量。也就是说，线程的创建可能比进程的创建快10~100倍。同一进程内的所有线程共享相同的全局内存。这使得线程之间易于共享信息，然而伴随这种简易性而来的却是同步（synchronization）问题。&lt;/p&gt;
-
-&lt;p&gt;同一进程内的所有线程除了共享全局变量外还共享：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;进程指令&lt;/li&gt;
-  &lt;li&gt;大多数数据&lt;/li&gt;
-  &lt;li&gt;打开的文件（即描述符）&lt;/li&gt;
-  &lt;li&gt;信号处理函数和信号处置&lt;/li&gt;
-  &lt;li&gt;当前工作目录&lt;/li&gt;
-  &lt;li&gt;用户ID和组ID&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;不过每个线程有各自的：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;线程ID&lt;/li&gt;
-  &lt;li&gt;寄存器集合，包括程序计数器和栈指针&lt;/li&gt;
-  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;errno&lt;/code&gt;&lt;/li&gt;
-  &lt;li&gt;信号掩码&lt;/li&gt;
-  &lt;li&gt;优先级&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;本文中讲述的是POSIX线程，也成为&lt;code class=&quot;highlighter-rouge&quot;&gt;Pthread&lt;/code&gt;。POSIX线程作为POSIX.1c标准的一部分在1995年得到标准化，大多数unix版本支持这类线程。我们将看到所有的&lt;code class=&quot;highlighter-rouge&quot;&gt;Pthread&lt;/code&gt;函数都以&lt;code class=&quot;highlighter-rouge&quot;&gt;ptread_&lt;/code&gt;开头。&lt;/p&gt;
-
-&lt;h2 id=&quot;基本线程函数&quot;&gt;基本线程函数&lt;/h2&gt;
-
-&lt;h3 id=&quot;pthread_create&quot;&gt;pthread_create&lt;/h3&gt;
-
-&lt;p&gt;当一个程序由exec启动执行时，称为初始线程（initial thread）或者主线程（main thread）的单个线程就被创建了，其余线程则由&lt;code class=&quot;highlighter-rouge&quot;&gt;ptread_create&lt;/code&gt;函数创建。&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;pthread_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_create&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pthread_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_attr_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;attr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;func&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;arg&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;一个进程内的每个线程都由一个线程ID（thread ID）标识，其数据类型为&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_t&lt;/code&gt;（往往都是   unsigned int）。如果新的线程创建成功，其ID就通过&lt;code class=&quot;highlighter-rouge&quot;&gt;tid&lt;/code&gt;指针返回。&lt;/p&gt;
-
-&lt;p&gt;每个线程都有许多属性（attribute）：优先级、初始栈大小、是否为守护线程等等。我们可以在创建线程时通过初始化一个取代默认设置的&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_attr_t&lt;/code&gt;变量指定这些属性。通常情况我们采用默认的设置，这时我们把&lt;code class=&quot;highlighter-rouge&quot;&gt;attr&lt;/code&gt;参数指定为空指针。&lt;/p&gt;
-
-&lt;p&gt;创建一个线程时我们最后指定的参数是由该线程执行的函数及其参数。该线程通过调用该函数开始执行，然后显式（调用&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_exit&lt;/code&gt;)或者隐式（函数返回）地终止。该函数的地址由&lt;code class=&quot;highlighter-rouge&quot;&gt;func&lt;/code&gt;参数指定，该函数的唯一调用参数是指针&lt;code class=&quot;highlighter-rouge&quot;&gt;arg&lt;/code&gt;。如果我们需要给该函数传递多个参数，我们就得把它们打包成一个结构，然后把这个结构的地址作为单个参数传递给&lt;code class=&quot;highlighter-rouge&quot;&gt;func&lt;/code&gt;。&lt;/p&gt;
-
-&lt;p&gt;注意&lt;code class=&quot;highlighter-rouge&quot;&gt;func&lt;/code&gt;和&lt;code class=&quot;highlighter-rouge&quot;&gt;arg&lt;/code&gt;的声明，&lt;code class=&quot;highlighter-rouge&quot;&gt;func&lt;/code&gt;所指函数作为参数接受一个通用指针（void *），又作为返回值返回一个通用指针（void *）。这时的我们可以把一个指针（它指向我们期望的任何内容）传递给一个线程，又允许线程返回一个指针（它同样指向我们所期望的任何内容）。&lt;/p&gt;
-
-&lt;p&gt;通常情况下Ptread函数的返回值成功时为0，出错时为某个非0值。与套接字及大多数系统调用出错时返回-1并置&lt;code class=&quot;highlighter-rouge&quot;&gt;errno&lt;/code&gt;为某个正值的做法不同的是，Pthread函数出错时作为函数返回值返回正值错误指示。举个例子，如果&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_create&lt;/code&gt;因在线程数目上超过某个系统限制而不能创建新线程，函数返回值将是&lt;code class=&quot;highlighter-rouge&quot;&gt;EAGAIN&lt;/code&gt;。Pthread函数不设置&lt;code class=&quot;highlighter-rouge&quot;&gt;errno&lt;/code&gt;。&lt;/p&gt;
-
-&lt;h3 id=&quot;pthread_join&quot;&gt;pthread_join&lt;/h3&gt;
-
-&lt;p&gt;我们可以通过调用&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_join&lt;/code&gt;等待一个给定线程终止。对比线程和unix进程，&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_create&lt;/code&gt;类似于&lt;code class=&quot;highlighter-rouge&quot;&gt;fork&lt;/code&gt;，&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_join&lt;/code&gt;类似于&lt;code class=&quot;highlighter-rouge&quot;&gt;waitpid&lt;/code&gt;。&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;pthread_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_join&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pthread_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;**&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;status&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;我们必须制定要等待的线程的&lt;code class=&quot;highlighter-rouge&quot;&gt;tid&lt;/code&gt;。不幸的是，Pthread没有办法等待任意一个线程（类似在&lt;code class=&quot;highlighter-rouge&quot;&gt;waitpid&lt;/code&gt;中制定参数为-1）。如果&lt;code class=&quot;highlighter-rouge&quot;&gt;status&lt;/code&gt;指针非空，来自所等待的线程的返回值（一个指向某个对象的指针）将存入&lt;code class=&quot;highlighter-rouge&quot;&gt;status&lt;/code&gt;所指向的位置。&lt;/p&gt;
-
-&lt;h3 id=&quot;pthread_self&quot;&gt;pthread_self&lt;/h3&gt;
-
-&lt;p&gt;每个线程都有一个在进程内标识自身的ID。线程ID由&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_create&lt;/code&gt;返回，而我们可以在&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_join&lt;/code&gt;中使用它。每个线程可以通过&lt;code class=&quot;highlighter-rouge&quot;&gt;ptread_self&lt;/code&gt;获取自身的线程ID。&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;pthread_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;对比unix线程，&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_self&lt;/code&gt;类似于&lt;code class=&quot;highlighter-rouge&quot;&gt;getpid&lt;/code&gt;。&lt;/p&gt;
-
-&lt;h3 id=&quot;pthread_detach&quot;&gt;pthread_detach&lt;/h3&gt;
-
-&lt;p&gt;一个线程或者是可汇合的（joinable，默认值），或者是脱离的（detached）。当一个可汇合的线程终止时，它的线程ID和退出状态将留存到另一个线程对它调用&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_join&lt;/code&gt;。脱离的线程却像守护进程，当它们终止时，所有相关资源都将被释放，我们不能等待它们终止。&lt;/p&gt;
-
-&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_detach&lt;/code&gt;函数把指定的线程变为脱离状态。&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;pthread_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_detach&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pthread_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;h3 id=&quot;pthread_exit&quot;&gt;pthread_exit&lt;/h3&gt;
-
-&lt;p&gt;让一个线程终止的方法之一是调用&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_exit&lt;/code&gt;。&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_exit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;status&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;如果该线程未曾脱离，它的线程ID和退出状态将一直留存到调用进程内某个其他线程对它调用&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_join&lt;/code&gt;。&lt;/p&gt;
-
-&lt;p&gt;指针&lt;code class=&quot;highlighter-rouge&quot;&gt;status&lt;/code&gt;不能指向局部于调用线程的对象，因为线程终止时，这样的对象也会消失。&lt;/p&gt;
-
-&lt;p&gt;让一个线程终止的另外两个方法是：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;启动线程的函数（即&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_create&lt;/code&gt;的第三个参数）可以返回。该函数的返回值就是相应线程的终止状态。&lt;/li&gt;
-  &lt;li&gt;如果进程的main函数返回或者任何线程调用了&lt;code class=&quot;highlighter-rouge&quot;&gt;exit&lt;/code&gt;，整个进程就终止。其中包括它的任何线程。&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h2 id=&quot;互斥锁&quot;&gt;互斥锁&lt;/h2&gt;
-
-&lt;p&gt;线程编程称为并发编程（concurrent programming）或者并行编程（parallel programming），因为多个线程可以并发（或者并行）地运行且访问相同的变量。在并发编程中更改同一个变量时可能会产生同步问题，其解决办法是使用一个互斥锁（mutex，表示mutual exclusion）保护共享变量；访问该变量的前提条件是持有该互斥锁。按照Pthread，互斥锁是类型为&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_mutex_t&lt;/code&gt;的变量。我们使用以下两个函数为一个互斥锁上锁和解锁。&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_mutex_lock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pthread_mutex_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mptr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_mutex_unlock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pthread_mutex_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mptr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;如果试图上锁一个已被另外某个线程锁住的互斥锁，本线程将会被阻塞，直到该互斥锁被解锁为止。&lt;/p&gt;
-
-&lt;p&gt;如果某个互斥锁变量是静态分配的，我们就必须把它初始化为常值&lt;code class=&quot;highlighter-rouge&quot;&gt;PTHREAD_MUTEX_INITIALIZER&lt;/code&gt;。如果我们在共享内存区中分配一个互斥锁，那么必须通过调用&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_mutext_init&lt;/code&gt;函数在运行时将其初始化。&lt;/p&gt;
-
-&lt;p&gt;以下是一个利用互斥锁操作计数器的例子：&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cp&quot;&gt;#include &amp;lt;stdio.h&amp;gt;
-#include &amp;lt;pthread.h&amp;gt;
-#define NLOOP 5000
-&lt;/span&gt;
-&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;counter&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;cm&quot;&gt;/* 由线程进行递增操作 */&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;pthread_mutex_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;counter_mutex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTHREAD_MUTEX_INITIALIZER&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-
-&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;doit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-
-&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;main&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;argc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;**&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;argv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;pthread_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tidA&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tidB&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;pthread_create&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tidA&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;doit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;pthread_create&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tidB&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;doit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;cm&quot;&gt;/* 等待线程退出 */&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;pthread_join&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tidA&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;pthread_join&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tidB&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;exit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-
-&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;doit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;vptr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;val&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;cm&quot;&gt;/* 先打印，再递增 */&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;NLOOP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;pthread_mutex_lock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;val&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;counter&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;printf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;%d: %d&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;val&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;counter&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;val&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;pthread_mutex_unlock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;使用互斥锁上锁会带来额外的开销，但并不会太大。&lt;/p&gt;
-
-&lt;h2 id=&quot;条件变量&quot;&gt;条件变量&lt;/h2&gt;
-
-&lt;p&gt;互斥锁适合于防止同时访问某个共享变量，但我们需要另外某种在等待期间让我们进入睡眠的方式。条件变量（condition variable）结合互斥锁能够提供这样的功能。互斥锁提供互斥机制，条件变量提供信号机制。&lt;/p&gt;
-
-&lt;p&gt;按照Pthread，条件变量是类型为&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_cond_t&lt;/code&gt;的变量。以下两个函数用来使用条件变量：&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_cond_wait&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pthread_cond_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;cptr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_mutex_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mptr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_cond_signal&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pthread_cond_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;cptr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;以下是一个使用条件变量的例子：&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cp&quot;&gt;#include &amp;lt;stdio.h&amp;gt;
-#include &amp;lt;pthread.h&amp;gt;
-#define NLOOP 5000
-&lt;/span&gt;
-&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;counter&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;cm&quot;&gt;/* 由线程进行递增操作 */&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;pthread_mutex_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;counter_mutex&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTHREAD_MUTEX_INITIALIZER&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;pthread_cond_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;counter_cond&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTHREAD_COND_INITIALIZER&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;doit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;main&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;argc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;**&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;argv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;pthread_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tidA&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tidB&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;pthread_create&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tidA&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;doit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;pthread_create&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tidB&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;doit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;cm&quot;&gt;/* 主线程循环等待操作完成 */&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;pthread_mutex_lock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;while&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;NLOOP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
-    &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;pthread_cond_wait&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_cond&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;printf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;main: %d&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;counter&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;pthread_mutex_unlock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;exit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;doit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;vptr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;val&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-    &lt;span class=&quot;cm&quot;&gt;/* 先打印，再递增 */&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;NLOOP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;pthread_mutex_lock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;val&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;counter&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;val&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;NLOOP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
-        &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-            &lt;span class=&quot;n&quot;&gt;counter&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;val&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
-        &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;pthread_cond_signal&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_cond&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;pthread_mutex_unlock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;主循环阻塞在&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_cond_wait&lt;/code&gt;调用中，等待某个即将终止的线程发送发送信号到与&lt;code class=&quot;highlighter-rouge&quot;&gt;counter&lt;/code&gt;关联的条件变量。主循环只在持有互斥锁期间才检查&lt;code class=&quot;highlighter-rouge&quot;&gt;counter&lt;/code&gt;变量，如果发现无事可做，那么就调用&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_cond_wait&lt;/code&gt;。该函数把调用线程投入睡眠并释放调用线程持有的互斥锁。此外，当&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_cond_wait&lt;/code&gt;返回时（其他某个线程发送信号到与&lt;code class=&quot;highlighter-rouge&quot;&gt;counter&lt;/code&gt;关联的条件变量之后），该线程再次持有该互斥锁。&lt;/p&gt;
-
-&lt;p&gt;为什么每个条件变量要关联一个互斥锁呢？因为“条件”通常是线程之间共享的某个变量的值。允许不同线程设置和测试该变量要求有一个与该变量关联的互斥锁。举例来说，如果上面的例子中没有使用互斥锁，那么主循环就是这样：&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;while&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;NLOOP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;pthread_cond_wait&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_cond&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;这里存在这样的可能：主线程外最后一个线程在主循环测试&lt;code class=&quot;highlighter-rouge&quot;&gt;counter &amp;lt; NLOOP&lt;/code&gt;之后但在调用&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_cond_wait&lt;/code&gt;之前递增了&lt;code class=&quot;highlighter-rouge&quot;&gt;counter&lt;/code&gt;。如果发生这样的情况，最后那个“信号”就丢失了，造成主循环永远阻塞在&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_cond_wait&lt;/code&gt;调用中，等待永远不再发生的某事再次出现。&lt;/p&gt;
-
-&lt;p&gt;同样，要求&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_cond_wait&lt;/code&gt;被调用时其所关联的互斥锁必须是上锁的，该函数作为单个原子操作解锁该互斥锁并把调用线程投入睡眠也是出于这个理由。要是该函数不先解锁该互斥锁，到返回时再给它上锁，调用线程就不得不实现解锁事后上锁该互斥锁，测试变量counter的代码将变为：&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;pthread_mutex_lock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;k&quot;&gt;while&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;NLOOP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;pthread_mutex_unlock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;pthread_cond_wait&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_cond&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;n&quot;&gt;pthread_mutex_lock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;counter_mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;然而这里也可能存在：主线程外最后一个线程在主线程调用&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_mutex_unlock&lt;/code&gt;和&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_cond_wait&lt;/code&gt;之间终止并递增了counter的值。&lt;/p&gt;
-
-&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_cond_signal&lt;/code&gt;通常唤醒等在相应条件变量上的单个线程。有时候一个线程知道自己应该唤醒多个线程，这时它可以调用&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_cond_broadcast&lt;/code&gt;唤醒等在相应条件变量上的所有线程。&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_cond_broadcast&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pthread_cond_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;cptr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_cond_timedwait&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pthread_cond_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;cptr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pthread_mutex_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mptr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;timespec&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;abstime&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_cond_timedwait&lt;/code&gt;允许线程设置一个阻塞时间的限制。&lt;code class=&quot;highlighter-rouge&quot;&gt;abstime&lt;/code&gt;是一个&lt;code class=&quot;highlighter-rouge&quot;&gt;timespec&lt;/code&gt;结构，指定该函数必须返回时刻的系统时间，即到时候相应条件变量尚未收到信号的话，就会返回&lt;code class=&quot;highlighter-rouge&quot;&gt;ETIME&lt;/code&gt;错误。&lt;/p&gt;
-
-&lt;p&gt;这里的&lt;code class=&quot;highlighter-rouge&quot;&gt;abstime&lt;/code&gt;是一个绝对时间（absolute time），而不是一个时间增量（time delta）。这一点不同于&lt;code class=&quot;highlighter-rouge&quot;&gt;select&lt;/code&gt;和&lt;code class=&quot;highlighter-rouge&quot;&gt;pselect&lt;/code&gt;。使用绝对时间的优点在于，如果该函数过早返回（可能是因为捕获了某个信号），那么不必改动&lt;code class=&quot;highlighter-rouge&quot;&gt;timespec&lt;/code&gt;结构就可以再次调用该函数；缺点是首次调用该函数之前不得不调用&lt;code class=&quot;highlighter-rouge&quot;&gt;gettimeofday&lt;/code&gt;。&lt;/p&gt;
-
-&lt;h2 id=&quot;总结&quot;&gt;总结&lt;/h2&gt;
-
-&lt;p&gt;创建一个线程通常比调用&lt;code class=&quot;highlighter-rouge&quot;&gt;fork&lt;/code&gt;派生一个进程快得多。仅仅这一点就能够体现线程在繁重使用的网络服务器上的优势。&lt;/p&gt;
-
-&lt;p&gt;同一进程内的所有线程共享全局变量和描述符，从而允许不同线程之间共享信息。然而这种共享却引入了同步问题，我们必须使用Pthread同步原语“互斥锁”和“条件变量”来解决。共享数据的同步几乎是每个线程化程序必不可少的部分。&lt;/p&gt;
-
-&lt;p&gt;条件变量必须和互斥锁配合使用，这是规范的一部分。这么规定的原因在于如果不配合互斥锁，条件变量会面临可能的信号丢失的问题。这个信号丢失的问题有个专门的名字，叫做&lt;a href=&quot;https://docs.oracle.com/cd/E19455-01/806-5257/sync-30/index.html&quot;&gt;lost wake-up problem&lt;/a&gt;。&lt;/p&gt;
-
-&lt;h3 id=&quot;关联到java&quot;&gt;关联到java&lt;/h3&gt;
-
-&lt;p&gt;在java 1.2之后的版本，在java中创建的&lt;code class=&quot;highlighter-rouge&quot;&gt;Thread&lt;/code&gt;，在linux平台下实际上就是&lt;code class=&quot;highlighter-rouge&quot;&gt;Pthread&lt;/code&gt;。可以看出java中Thread的各个属性与Pthread比较类似（但是没有detached属性）。在同步方面，java有自己的同步机制（&lt;code class=&quot;highlighter-rouge&quot;&gt;synchronized&lt;/code&gt;关键字），并没有直接使用Pthread中的同步原语。java 1.5之后引入的&lt;code class=&quot;highlighter-rouge&quot;&gt;java.util.concurrent.locks&lt;/code&gt;中的库函数，则与Pthread同步原语有更多的相似的地方。&lt;/p&gt;
-
-&lt;p&gt;另外，java中&lt;code class=&quot;highlighter-rouge&quot;&gt;Object&lt;/code&gt;的&lt;code class=&quot;highlighter-rouge&quot;&gt;wait/notify/notifyAll&lt;/code&gt;，&lt;code class=&quot;highlighter-rouge&quot;&gt;Condition&lt;/code&gt;的&lt;code class=&quot;highlighter-rouge&quot;&gt;await/signal&lt;/code&gt;必须要在同步块中，其道理跟条件变量一样，都是为了避免信号丢失的问题。&lt;/p&gt;</content><author><name></name></author><summary type="html">概述</summary></entry></feed>
+&lt;p&gt;热点的发现可以通过统计的方式实现。我们可以在代理层周期统计每个key的访问情况，当超过指定阈值时key就成为了热点key。&lt;/p&gt;</content><author><name></name></author><summary type="html">redis简介</summary></entry></feed>

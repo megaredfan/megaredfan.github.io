@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>TCP拥塞控制 | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="TCP拥塞控制" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="TCP拥塞控制的起源" />
+<meta property="og:description" content="TCP拥塞控制的起源" />
+<link rel="canonical" href="http://localhost:4000/2019/10/27/TCP-congestion.html" />
+<meta property="og:url" content="http://localhost:4000/2019/10/27/TCP-congestion.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2019-10-27T00:00:00+08:00" />
+<script type="application/ld+json">
+{"mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/10/27/TCP-congestion.html"},"url":"http://localhost:4000/2019/10/27/TCP-congestion.html","headline":"TCP拥塞控制","dateModified":"2019-10-27T00:00:00+08:00","datePublished":"2019-10-27T00:00:00+08:00","description":"TCP拥塞控制的起源","@type":"BlogPosting","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">TCP拥塞控制</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2019-10-27T00:00:00+08:00" itemprop="datePublished">Oct 27, 2019
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="tcp拥塞控制的起源">TCP拥塞控制的起源</h2>
+
+<p>1986年，从LBL到UC Berkeley的网络吞吐因为拥塞出现了从32Kbps到40bps的急剧下降，Van Jacobson 在1988年的论文《Congestion Avoidance and Control》从这个问题出发，提出了数据包守恒定律以及慢启动、拥塞控制和快重传的算法，在1990年又提出了快恢复算法。</p>
+
+<h2 id="数据包守恒原则">数据包守恒原则</h2>
+
+<p>在一个运行平稳的TCP连接中流动的数据包应该是守恒的，意思是当只有旧的数据包被成功传输到对端后，新的数据包才能加入到连接中。在TCP协议中，我们可以使用ack来作为判断数据包是否已经成功到达对端的依据，就是说当发送端收到good ack（大于发送端当前已经收到的最大ack的ack）时，它就可以发送新的数据包了。这种根据ack来决定继续发送数据包的机制就叫做self clocking（也叫做ack clocking）。</p>
+
+<h2 id="慢启动">慢启动</h2>
+
+<p>通过数据包守恒原则，我们知道可以通过ack来决定是否发送新的数据，而要收到ack就要先发送数据。慢启动就开始发送数据时的行为控制。慢启动的总体思路就是从一个很低的初始值开始，逐渐增加数据发送的速度，直到达到超时或者丢包为止。慢启动的实现思路如下：</p>
+
+<ol>
+  <li>每个连接维护一个变量cwnd（congestion window）</li>
+  <li>当连接刚建立或者遇到丢包时，将cwnd设置为1，单位为MSS（maximum segment size）</li>
+  <li>每收到一个新的ack，cwnd加一</li>
+  <li>当发送数据时，能够发送的数据包数量为min(cwnd,awnd)，awnd为接收端的滑动窗口大小(reciver’s advertised window)</li>
+</ol>
+
+<p>可以预见，在没有出现超时或者丢包时，慢启动增长的速度是指数级的，所以慢启动实际上并没有那么“慢”，“慢”是慢在它的起点只有1个MSS。</p>
+
+<h2 id="拥塞避免">拥塞避免</h2>
+
+<p>前面提到，慢启动的目的是逐渐增加发送速度进行试探，直到出现网络拥塞，而真正出现拥塞时又该怎么做呢，就是“拥塞避免”所做的事情了。拥塞避免主要由两部分组成：</p>
+
+<ol>
+  <li>一个判断当前网路出现拥塞的机制</li>
+  <li>在出现拥塞时降低发送速度的机制</li>
+</ol>
+
+<p>而拥塞避免的实现思路如下：</p>
+
+<ol>
+  <li>当出现超时时，将cwnd设置为当前值的一半（即当出现超时时就认为是出现了拥塞）</li>
+  <li>每收到一个新的ack，cwnd加1/cwnd（即当传输成功cwnd个数据包时，窗口大小加一，也就是随着RTT线性增加）</li>
+</ol>
+
+<p>这里的两个变更cwnd的行为通常称为“乘法减小”和“加法增大”。</p>
+
+<h2 id="结合慢启动和拥塞避免的算法">结合慢启动和拥塞避免的算法</h2>
+
+<p>值得注意的是，慢启动和拥塞避免实际上是两个不同的算法，它们一个用于试探网络资源的上限，另一个用于资源使用率达到或者接近上限时的行为。在1988年的论文中给出了一个结合了慢启动和拥塞避免的算法，具体实现思路如下：</p>
+
+<ol>
+  <li>发送端维持两个变量：拥塞窗口cwnd（congestion window）和慢启动门限ssthresh（slow start threshold），通过这两个变量来决定当前应该执行慢启动还是拥塞避免算法。</li>
+  <li>发送数据时，能够发送的数据包数量为min(cwnd,awnd)</li>
+  <li>出现超时时，ssthresh更新为cwnd/2（但不能小于2），cwnd设置为1</li>
+  <li>每收到一个新的zck，发送端的行为是:
+    <ul>
+      <li>如果<code class="highlighter-rouge">cwnd&lt;ssthresh</code>，<code class="highlighter-rouge">cwnd+=1</code>（慢启动阶段，窗口指数级别增加）</li>
+      <li>否则<code class="highlighter-rouge">cwnd+=1/cwdn</code>（拥塞避免阶段，窗口线性增加）</li>
+    </ul>
+  </li>
+</ol>
+
+<h2 id="快重传">快重传</h2>
+
+<p>快速重传的目的就是让发送端尽快感知到丢包。TCP发送方在每发送一个分段时会启动一个计时器，如果相应的数据包确认没在特定时间内被送回，发送方就假设这个分段在网络上丢失了，需要重发。这也是TCP用来估计RTT的测量方法。</p>
+
+<h3 id="重复确认">重复确认</h3>
+
+<p>重复确认基于以下过程：如果接收方接收到一个数据分段，就会将该分段的序列号加上数据字节长的值，作为分段确认的确认号，发送回发送方，表示期望发送方发送下一个序列号的分段。但是如果接收方提前收到更大的序列号的分段，或者说接收到无序到达的分段，接收方需要<strong>立即</strong>使用之前的确认号发送分段确认。此时如果发送方收到接收方相同确认号的分段确认超过1次，并且该对应序列号的分段超时计时器仍没超时的话，则这就是出现重复确认，需要进入快速重传。</p>
+
+<p>快送重传就是基于以下机制：如果假设重复阈值为3，当发送方收到4次相同确认号的分段确认（第1次收到确认期望序列号，加3次重复的期望序列号确认）时，则可以认为继续发送更高序列号的分段将会被接受方丢弃，而且会无法有序送达。发送方应该忽略超时计时器的等待重发，立即重发重复分段确认中确认号对应序列号的分段。</p>
+
+<h2 id="tcp拥塞控制的各个实现">TCP拥塞控制的各个实现</h2>
+
+<p>这里先列举各个TCP拥塞控制的实现，具体接受后续再补上了。</p>
+
+<ul>
+  <li>TCP Tahoe/Reno</li>
+  <li>TCP Vegas</li>
+  <li>TCP New Reno</li>
+  <li>TCP BIC/CUBIC</li>
+  <li>TCP Westwood/Westwood+</li>
+  <li>Compound TCP</li>
+  <li>TCP PRR</li>
+  <li>TCP BBR</li>
+</ul>
+
+  </div><a class="u-url" href="/2019/10/27/TCP-congestion.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
