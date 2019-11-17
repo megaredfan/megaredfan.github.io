@@ -1,4 +1,69 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-10-27T18:44:59+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">TCP拥塞控制</title><link href="http://localhost:4000/2019/10/27/TCP-congestion.html" rel="alternate" type="text/html" title="TCP拥塞控制" /><published>2019-10-27T00:00:00+08:00</published><updated>2019-10-27T00:00:00+08:00</updated><id>http://localhost:4000/2019/10/27/TCP%20congestion</id><content type="html" xml:base="http://localhost:4000/2019/10/27/TCP-congestion.html">&lt;h2 id=&quot;tcp拥塞控制的起源&quot;&gt;TCP拥塞控制的起源&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-11-17T18:52:04+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">jvm safepoint</title><link href="http://localhost:4000/2019/11/17/safepoint.html" rel="alternate" type="text/html" title="jvm safepoint" /><published>2019-11-17T00:00:00+08:00</published><updated>2019-11-17T00:00:00+08:00</updated><id>http://localhost:4000/2019/11/17/safepoint</id><content type="html" xml:base="http://localhost:4000/2019/11/17/safepoint.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+
+&lt;p&gt;多线程编程是一件很难的事，或者说编写在多线程条件下运行良好的代码很难。java提供了synchronized和volatile关键字，还有Lock类和Atomic相关的类来帮助我们正确的实现并发逻辑，但我在实际工作中仍倾向于尽量避免并发，还有一个偷懒的做法就是需要并发访问的变量总是加上volatile修饰。&lt;/p&gt;
+
+&lt;p&gt;最近遇到了两个并发相关的例子，一个是某个同事编写的利用AtomicInteger类实现的lock-free逻辑出现了bug，由于边界条件没处理好，导致出现死循环的情况；另一个是某个服务由于平时负载比较高，出现了偏向锁撤销耗时过长的问题。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;偏向锁撤销&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;偏向锁实际上是jvm对锁的一种优化，它假定对于一个锁，实际上只有一个线程在尝试访问。偏向锁的实现很简单，就是在一个线程访问锁时，将这个锁的持有者直接标记为这个线程，当这个线程再尝试获取锁时，只需要检查这个持有者标记即可。偏向锁的优化在实际并没有多线程竞争的场景下能够有效提高程序的性能，但是当“没有多线程竞争”这个假设不成立，偏向锁就需要额外的逻辑进行撤销，而这个撤销就有可能会带来较长时间的停顿，影响程序的性能。&lt;/p&gt;
+
+&lt;p&gt;为什么说偏向锁撤销可能会导致长时间停顿呢，是因为偏向锁的撤销实际上需要在安全点时进行。偏向锁撤销的需要暂停拥有锁的线程并操作它的栈，所以需要在安全点进行。而程序进入安全点所需的时间是不确定的，具体的原因就跟安全点的具体实现有关。&lt;/p&gt;
+
+&lt;h2 id=&quot;safepoint&quot;&gt;safepoint&lt;/h2&gt;
+
+&lt;p&gt;安全点（以下称safepoint）是jvm中的一个重要的概念，jvm中很多场景都会遇到它，最常见的应该是GC（虽然我前面提到的是偏向锁撤销）。safepoint的含义表示的时程序中的某些固定位置，在这些位置上程序的状态是“确定”的，这时jvm就可以根据程序的状态进行一些特殊的操作，比如：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;gc：gc时需要将不再存活的对象清理掉，所以需要“确定”地知道哪些对象不再存活。gc时还需要扫描每个线程的栈，所以需要“确定”的直到栈中的每个对象的类型（引用还是值）。&lt;/li&gt;
+  &lt;li&gt;偏向锁撤销：这个前面提到了，因为需要暂停线程，同时操作线程的栈。&lt;/li&gt;
+  &lt;li&gt;更新OopMap：oop（ordinary object pointer）是hotspot虚拟机里用于记录对象的元数据的数据结构，它记录了对象内各个偏移量对应的数据的类型。OopMap主要用于实现准确式GC，关于准确式GC的介绍可以参考&lt;a href=&quot;https://www.wikiwand.com/en/Tracing_garbage_collection#/Precise_vs._conservative_and_internal_pointers&quot;&gt;这里&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;Code deoptimization/Flushing code cache/Class redefinition/Various debug operation：来自&lt;a href=&quot;http://blog.ragozin.info/2012/10/safepoints-in-hotspot-jvm.html&quot;&gt;这里&lt;/a&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h3 id=&quot;safepoint的位置&quot;&gt;safepoint的位置&lt;/h3&gt;
+
+&lt;p&gt;在jvm的运行时管理中，利用safepoint来将整个程序挂起（Stop the World），然后进行一些特殊的操作。而safepoint的思路也很简单：当我们需要执行一些特殊操作（比如gc）时，我们就在程序的某些位置设置一些暂停点，当线程来到这些暂停点时，就将自己挂起。等所有线程都挂起后，我们再进行原定的特殊操作。而safepoint的具体位置通常有以下几个：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;每个字节码命令之后（解释模式）&lt;/li&gt;
+  &lt;li&gt;所有的方法返回之前（JIT模式）&lt;/li&gt;
+  &lt;li&gt;所有的非计数循环的末尾 （JIT模式）&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;只在非计数循环的末尾设置safepoint带来了一个问题：假如程序里有一个非常大的计数循环（比如循环100w次），就可能导致safepoint挂起整个程序的时间变长，因为其他已经挂起的线程都需要等待这个大循环执行结束。&lt;/p&gt;
+
+&lt;p&gt;前面提到safepoint的设置会使所有线程挂起，那么具体的gc或者偏向锁撤销又是由谁来执行的呢，答案就是VM线程。在jstack的输出结果中就可以看到有一个叫做”VMThread”的线程，这个线程就是专门负责在STW的时候处理各种特殊操作。&lt;/p&gt;
+
+&lt;h3 id=&quot;safe-region&quot;&gt;safe region&lt;/h3&gt;
+
+&lt;p&gt;safepoint可以让运行中的线程主动挂起，而其他状态下的线程（比如正在sleep或者正阻塞在一个锁上）则无法主动运行到safepoint。对于这种情况jvm中设置了安全区（safe region）的概念，当线程出于某些状态时，jvm认为这种情况下这个线程不会对jvm heap做出任何修改，因此不会破坏jvm的“确定”的状态，所以这些线程可以认为是安全的（处于安全区）。当处于安全区的线程要从安全区出来的时候，同样需要检查是否应该主动挂起。jvm中设定以下几种状态的线程就是处于safe region：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;处于阻塞或者等待中&lt;/li&gt;
+  &lt;li&gt;正在执行JNI方法&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;所以当线程处于以上几个状态时，我们就认为它们就和达到safepoint一样，可以执行特殊的操作了。为了防止线程从safe region返回后对jvm heap进行更改，当STW时线程在从safe region返回时都会主动挂起。&lt;/p&gt;
+
+&lt;h3 id=&quot;线程挂起的实现&quot;&gt;线程挂起的实现&lt;/h3&gt;
+
+&lt;p&gt;通过在特定的位置设置safepoint，我们可以让程序在需要的时候挂起。当需要STW的时候，safepoint会被激活，每个线程在运行到safepoint时，都会主动检查safepoint的状态，如果safepoint被激活，线程就会进入挂起状态。简单来说，&lt;strong&gt;线程在检查safepoint时会主动访问一个特定的内存页，而当STW时这个内存页设置为不可读，所以每个尝试读这个内存页的线程也就会挂起&lt;/strong&gt;。而这个检查过程是通过JIT编译器主动插入到指令中的。&lt;/p&gt;
+
+&lt;p&gt;而具体来说，线程处于不同状态时，挂起线程的方式也有不同：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;当线程处于解释执行时，解释器会强制将下一个指令指向检查safepoint的指令&lt;/li&gt;
+  &lt;li&gt;当线程正在执行JNI方法时，VMThread不会等待其返回，而是认为其处于safe region。当它返回时会阻塞直到STW结束&lt;/li&gt;
+  &lt;li&gt;当线程正在执行已经编译好的方法时，编译好的代码里会携带检查safepoint的逻辑，我们将特定的内存页设置为不可读即可&lt;/li&gt;
+  &lt;li&gt;当线程正在阻塞时，VMThread不会等待其返回，而是认为其处于safe region。当它返回时会阻塞直到STW结束&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;当线程尝试访问标记为不可读的内存页时，会触发SIGSEGV信号，从而触发jvm内的signal handler，signal handler在收到SIGSEGV信号时会确认是否是由于safepoint检查触发了这个信号，如果是就会将自身挂起。&lt;/p&gt;
+
+&lt;h2 id=&quot;其他&quot;&gt;其他&lt;/h2&gt;
+
+&lt;p&gt;大部分内容参考了&lt;a href=&quot;https://blog.csdn.net/ITer_ZC/category_9263360.html&quot;&gt;iter_zc的博客&lt;/a&gt;，在此表示感谢。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">TCP拥塞控制</title><link href="http://localhost:4000/2019/10/27/TCP-congestion.html" rel="alternate" type="text/html" title="TCP拥塞控制" /><published>2019-10-27T00:00:00+08:00</published><updated>2019-10-27T00:00:00+08:00</updated><id>http://localhost:4000/2019/10/27/TCP%20congestion</id><content type="html" xml:base="http://localhost:4000/2019/10/27/TCP-congestion.html">&lt;h2 id=&quot;tcp拥塞控制的起源&quot;&gt;TCP拥塞控制的起源&lt;/h2&gt;
 
 &lt;p&gt;1986年，从LBL到UC Berkeley的网络吞吐因为拥塞出现了从32Kbps到40bps的急剧下降，Van Jacobson 在1988年的论文《Congestion Avoidance and Control》从这个问题出发，提出了数据包守恒定律以及慢启动、拥塞控制和快重传的算法，在1990年又提出了快恢复算法。&lt;/p&gt;
 
@@ -946,79 +1011,4 @@ org.quartz.jobStore.class: org.quartz.simpl.RAMJobStore
 
 &lt;p&gt;futex（Fast Userspace muTexes）意为快速用户区互斥，它是linux提供的一种同步（互斥）机制，特点是对于条件的判断是发生在用户空间的，在竞争不激烈的情况下能有更好的性能表现。futex在2.6.x系列稳定版内核中出现。&lt;/p&gt;
 
-&lt;p&gt;futex由一块能够被多个进程共享的内存空间（一个对齐后的整型变量）组成；这个整型变量的值能够通过汇编语言调用CPU提供的原子操作指令来增加或减少，并且一个进程可以等待直到那个值变成正数。Futex 的操作几乎全部在用户空间完成；只有当操作结果不一致从而需要仲裁时，才需要进入操作系统内核空间执行。这种机制允许使用 futex 的锁定原语有非常高的执行效率：由于绝大多数的操作并不需要在多个进程之间进行仲裁，所以绝大多数操作都可以在应用程序空间执行，而不需要使用（相对高代价的）内核系统调用。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">redis热点</title><link href="http://localhost:4000/2019/07/21/Redis-Hot-Key.html" rel="alternate" type="text/html" title="redis热点" /><published>2019-07-21T00:00:00+08:00</published><updated>2019-07-21T00:00:00+08:00</updated><id>http://localhost:4000/2019/07/21/Redis%20Hot%20Key</id><content type="html" xml:base="http://localhost:4000/2019/07/21/Redis-Hot-Key.html">&lt;h2 id=&quot;redis简介&quot;&gt;redis简介&lt;/h2&gt;
-
-&lt;p&gt;redis是一个用C语言编写的开源的、基于内存的键值对存储数据库。redis支持多种数据结构如string、hash、list、set等等，同时还支持原子操作。相比起其他kv类型的数据库产品，redis有两个突出的特点：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;redis支持多种数据结构，并且可以在复杂的数据结构上进行原子操作&lt;/li&gt;
-  &lt;li&gt;redis支持数据的持久化，包括RDB和AOF格式&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;除此之外，redis的另一个着重宣传的优势就是快，因为redis对数据的操作都是基于内存的，同时redis采用单线程模型，所有的命令都在同一个线程中执行，避免了线程切换的影响。&lt;/p&gt;
-
-&lt;h2 id=&quot;redis使用的限制&quot;&gt;redis使用的限制&lt;/h2&gt;
-
-&lt;p&gt;由于redis独特的单线程模型，在使用redis时需要注意几个地方，避免出现性能下降。&lt;/p&gt;
-
-&lt;h3 id=&quot;避免耗时的操作&quot;&gt;避免耗时的操作&lt;/h3&gt;
-
-&lt;p&gt;前面提到，redis只用一个线程处理所有的命令，所以应避免出现耗时的操作，否则会阻塞整个redis实例，影响性能。&lt;/p&gt;
-
-&lt;h3 id=&quot;避免大key&quot;&gt;避免大key&lt;/h3&gt;
-
-&lt;p&gt;大key指的是一个key对应的value过大的情况，比如string的长度非常大，或者hash、list、set、zset类型中元素个数非常多等等。redis中的大key会导致查询、删除等操作变慢，网卡带宽占满等问题，影响其他查询。&lt;/p&gt;
-
-&lt;h3 id=&quot;避免keys遍历&quot;&gt;避免KEYS遍历&lt;/h3&gt;
-
-&lt;p&gt;redis中的KEYS命令可以根据给定的正则表达式匹配所有符合的key，时间复杂度为O(N)，在key的数量特别多时耗时会变长，直接导致其他命令阻塞甚至实例崩溃。&lt;/p&gt;
-
-&lt;h2 id=&quot;redis热点产生的原因&quot;&gt;redis热点产生的原因&lt;/h2&gt;
-
-&lt;p&gt;在实际的生产中，我们通常会通过集群的模式部署redis来保证性能和可用性。redis集群的原理是通过分片来扩展服务能力，但不支持同时处理多个key的命令，来自客户端的请求会根据一定的规则路由到集群中的某个实例，而实例与实例之间不进行数据交换。&lt;/p&gt;
-
-&lt;p&gt;热点通常是由实际业务中的热门商品、热点新闻或者突发事件引起的，这是用户会大量而且集中的访问某个数据。而在服务端访问数据时，就会根据数据分片规则访问某个redis实例，这时由于请求过于集中，所有的请求都会落到同一个实例，就产生了redis热点。&lt;/p&gt;
-
-&lt;h2 id=&quot;redis热点的危害&quot;&gt;redis热点的危害&lt;/h2&gt;
-
-&lt;p&gt;redis热点实际上就是某个redis实例的负载过高，进而导致以下几个问题：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;主机网卡被打满，影响主机上的其他服务&lt;/li&gt;
-  &lt;li&gt;请求量过大，导致redis实例崩溃&lt;/li&gt;
-  &lt;li&gt;redis失效导致业务降级到读取DB，进而导致DB也崩溃，业务雪崩&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h2 id=&quot;redis热点的解决方法&quot;&gt;redis热点的解决方法&lt;/h2&gt;
-
-&lt;h3 id=&quot;避免直接读db&quot;&gt;避免直接读DB&lt;/h3&gt;
-
-&lt;p&gt;这是比较简单的方法，业务的服务端维护一个本地缓存，当redis负载过高或者崩溃时不降级到DB，而是返回本地缓存中的数据。但是这个方案有以下几个问题：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;需要一个判断是否返回本地缓存的机制&lt;/li&gt;
-  &lt;li&gt;需要维护本地缓存&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h3 id=&quot;读写分离&quot;&gt;读写分离&lt;/h3&gt;
-
-&lt;p&gt;读写分离的方案需要引入一个代理层，在redis客户端与redis集群之间增加一个代理，来自客户端的请求会先经过代理层做负载均衡和路由。然后redis集群中的实例分为读和写两类，读节点只负责读取数据。当出现redis请求热点时，读节点负载就会上升，这是我们可以扩容出更多的读节点来分担负载，避免redis实例崩溃。但是这种方案由以下几个要求：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;需要维护代理层和负载均衡&lt;/li&gt;
-  &lt;li&gt;需要实时监控redis负载&lt;/li&gt;
-  &lt;li&gt;需要支持节点扩缩容&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h3 id=&quot;热点数据缓存&quot;&gt;热点数据缓存&lt;/h3&gt;
-
-&lt;p&gt;另一种可以选择的方案就是对热点数据进行缓存，这里可以选择在代理层进行缓存或者是在客户端缓存。当发现有redis热点时，可以及时从缓存读取，避免直接向redis实例发起请求。这个方案有以下几个要求：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;需要维护本地缓存&lt;/li&gt;
-  &lt;li&gt;需要redis热点发现机制&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h3 id=&quot;热点的发现&quot;&gt;热点的发现&lt;/h3&gt;
-
-&lt;p&gt;热点的发现可以通过统计的方式实现。我们可以在代理层周期统计每个key的访问情况，当超过指定阈值时key就成为了热点key。&lt;/p&gt;</content><author><name></name></author><summary type="html">redis简介</summary></entry></feed>
+&lt;p&gt;futex由一块能够被多个进程共享的内存空间（一个对齐后的整型变量）组成；这个整型变量的值能够通过汇编语言调用CPU提供的原子操作指令来增加或减少，并且一个进程可以等待直到那个值变成正数。Futex 的操作几乎全部在用户空间完成；只有当操作结果不一致从而需要仲裁时，才需要进入操作系统内核空间执行。这种机制允许使用 futex 的锁定原语有非常高的执行效率：由于绝大多数的操作并不需要在多个进程之间进行仲裁，所以绝大多数操作都可以在应用程序空间执行，而不需要使用（相对高代价的）内核系统调用。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry></feed>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>jvm safepoint | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="jvm safepoint" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="前言" />
+<meta property="og:description" content="前言" />
+<link rel="canonical" href="http://localhost:4000/2019/11/17/safepoint.html" />
+<meta property="og:url" content="http://localhost:4000/2019/11/17/safepoint.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2019-11-17T00:00:00+08:00" />
+<script type="application/ld+json">
+{"mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/11/17/safepoint.html"},"url":"http://localhost:4000/2019/11/17/safepoint.html","headline":"jvm safepoint","dateModified":"2019-11-17T00:00:00+08:00","datePublished":"2019-11-17T00:00:00+08:00","description":"前言","@type":"BlogPosting","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">jvm safepoint</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2019-11-17T00:00:00+08:00" itemprop="datePublished">Nov 17, 2019
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="前言">前言</h2>
+
+<p>多线程编程是一件很难的事，或者说编写在多线程条件下运行良好的代码很难。java提供了synchronized和volatile关键字，还有Lock类和Atomic相关的类来帮助我们正确的实现并发逻辑，但我在实际工作中仍倾向于尽量避免并发，还有一个偷懒的做法就是需要并发访问的变量总是加上volatile修饰。</p>
+
+<p>最近遇到了两个并发相关的例子，一个是某个同事编写的利用AtomicInteger类实现的lock-free逻辑出现了bug，由于边界条件没处理好，导致出现死循环的情况；另一个是某个服务由于平时负载比较高，出现了偏向锁撤销耗时过长的问题。</p>
+
+<p><strong>偏向锁撤销</strong></p>
+
+<p>偏向锁实际上是jvm对锁的一种优化，它假定对于一个锁，实际上只有一个线程在尝试访问。偏向锁的实现很简单，就是在一个线程访问锁时，将这个锁的持有者直接标记为这个线程，当这个线程再尝试获取锁时，只需要检查这个持有者标记即可。偏向锁的优化在实际并没有多线程竞争的场景下能够有效提高程序的性能，但是当“没有多线程竞争”这个假设不成立，偏向锁就需要额外的逻辑进行撤销，而这个撤销就有可能会带来较长时间的停顿，影响程序的性能。</p>
+
+<p>为什么说偏向锁撤销可能会导致长时间停顿呢，是因为偏向锁的撤销实际上需要在安全点时进行。偏向锁撤销的需要暂停拥有锁的线程并操作它的栈，所以需要在安全点进行。而程序进入安全点所需的时间是不确定的，具体的原因就跟安全点的具体实现有关。</p>
+
+<h2 id="safepoint">safepoint</h2>
+
+<p>安全点（以下称safepoint）是jvm中的一个重要的概念，jvm中很多场景都会遇到它，最常见的应该是GC（虽然我前面提到的是偏向锁撤销）。safepoint的含义表示的时程序中的某些固定位置，在这些位置上程序的状态是“确定”的，这时jvm就可以根据程序的状态进行一些特殊的操作，比如：</p>
+
+<ol>
+  <li>gc：gc时需要将不再存活的对象清理掉，所以需要“确定”地知道哪些对象不再存活。gc时还需要扫描每个线程的栈，所以需要“确定”的直到栈中的每个对象的类型（引用还是值）。</li>
+  <li>偏向锁撤销：这个前面提到了，因为需要暂停线程，同时操作线程的栈。</li>
+  <li>更新OopMap：oop（ordinary object pointer）是hotspot虚拟机里用于记录对象的元数据的数据结构，它记录了对象内各个偏移量对应的数据的类型。OopMap主要用于实现准确式GC，关于准确式GC的介绍可以参考<a href="https://www.wikiwand.com/en/Tracing_garbage_collection#/Precise_vs._conservative_and_internal_pointers">这里</a></li>
+  <li>Code deoptimization/Flushing code cache/Class redefinition/Various debug operation：来自<a href="http://blog.ragozin.info/2012/10/safepoints-in-hotspot-jvm.html">这里</a></li>
+</ol>
+
+<h3 id="safepoint的位置">safepoint的位置</h3>
+
+<p>在jvm的运行时管理中，利用safepoint来将整个程序挂起（Stop the World），然后进行一些特殊的操作。而safepoint的思路也很简单：当我们需要执行一些特殊操作（比如gc）时，我们就在程序的某些位置设置一些暂停点，当线程来到这些暂停点时，就将自己挂起。等所有线程都挂起后，我们再进行原定的特殊操作。而safepoint的具体位置通常有以下几个：</p>
+
+<ol>
+  <li>每个字节码命令之后（解释模式）</li>
+  <li>所有的方法返回之前（JIT模式）</li>
+  <li>所有的非计数循环的末尾 （JIT模式）</li>
+</ol>
+
+<p>只在非计数循环的末尾设置safepoint带来了一个问题：假如程序里有一个非常大的计数循环（比如循环100w次），就可能导致safepoint挂起整个程序的时间变长，因为其他已经挂起的线程都需要等待这个大循环执行结束。</p>
+
+<p>前面提到safepoint的设置会使所有线程挂起，那么具体的gc或者偏向锁撤销又是由谁来执行的呢，答案就是VM线程。在jstack的输出结果中就可以看到有一个叫做”VMThread”的线程，这个线程就是专门负责在STW的时候处理各种特殊操作。</p>
+
+<h3 id="safe-region">safe region</h3>
+
+<p>safepoint可以让运行中的线程主动挂起，而其他状态下的线程（比如正在sleep或者正阻塞在一个锁上）则无法主动运行到safepoint。对于这种情况jvm中设置了安全区（safe region）的概念，当线程出于某些状态时，jvm认为这种情况下这个线程不会对jvm heap做出任何修改，因此不会破坏jvm的“确定”的状态，所以这些线程可以认为是安全的（处于安全区）。当处于安全区的线程要从安全区出来的时候，同样需要检查是否应该主动挂起。jvm中设定以下几种状态的线程就是处于safe region：</p>
+
+<ol>
+  <li>处于阻塞或者等待中</li>
+  <li>正在执行JNI方法</li>
+</ol>
+
+<p>所以当线程处于以上几个状态时，我们就认为它们就和达到safepoint一样，可以执行特殊的操作了。为了防止线程从safe region返回后对jvm heap进行更改，当STW时线程在从safe region返回时都会主动挂起。</p>
+
+<h3 id="线程挂起的实现">线程挂起的实现</h3>
+
+<p>通过在特定的位置设置safepoint，我们可以让程序在需要的时候挂起。当需要STW的时候，safepoint会被激活，每个线程在运行到safepoint时，都会主动检查safepoint的状态，如果safepoint被激活，线程就会进入挂起状态。简单来说，<strong>线程在检查safepoint时会主动访问一个特定的内存页，而当STW时这个内存页设置为不可读，所以每个尝试读这个内存页的线程也就会挂起</strong>。而这个检查过程是通过JIT编译器主动插入到指令中的。</p>
+
+<p>而具体来说，线程处于不同状态时，挂起线程的方式也有不同：</p>
+
+<ol>
+  <li>当线程处于解释执行时，解释器会强制将下一个指令指向检查safepoint的指令</li>
+  <li>当线程正在执行JNI方法时，VMThread不会等待其返回，而是认为其处于safe region。当它返回时会阻塞直到STW结束</li>
+  <li>当线程正在执行已经编译好的方法时，编译好的代码里会携带检查safepoint的逻辑，我们将特定的内存页设置为不可读即可</li>
+  <li>当线程正在阻塞时，VMThread不会等待其返回，而是认为其处于safe region。当它返回时会阻塞直到STW结束</li>
+</ol>
+
+<p>当线程尝试访问标记为不可读的内存页时，会触发SIGSEGV信号，从而触发jvm内的signal handler，signal handler在收到SIGSEGV信号时会确认是否是由于safepoint检查触发了这个信号，如果是就会将自身挂起。</p>
+
+<h2 id="其他">其他</h2>
+
+<p>大部分内容参考了<a href="https://blog.csdn.net/ITer_ZC/category_9263360.html">iter_zc的博客</a>，在此表示感谢。</p>
+
+  </div><a class="u-url" href="/2019/11/17/safepoint.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
