@@ -1,4 +1,364 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-11-17T18:52:04+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">jvm safepoint</title><link href="http://localhost:4000/2019/11/17/safepoint.html" rel="alternate" type="text/html" title="jvm safepoint" /><published>2019-11-17T00:00:00+08:00</published><updated>2019-11-17T00:00:00+08:00</updated><id>http://localhost:4000/2019/11/17/safepoint</id><content type="html" xml:base="http://localhost:4000/2019/11/17/safepoint.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-12-29T19:55:53+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">TCP BBR简介</title><link href="http://localhost:4000/2019/12/29/TCP-BBR.html" rel="alternate" type="text/html" title="TCP BBR简介" /><published>2019-12-29T00:00:00+08:00</published><updated>2019-12-29T00:00:00+08:00</updated><id>http://localhost:4000/2019/12/29/TCP%20BBR</id><content type="html" xml:base="http://localhost:4000/2019/12/29/TCP-BBR.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+
+&lt;p&gt;TCP BBR是由来自Google的 Neal Cardwell 和 Yuchung Cheng 发表的新的TCP拥塞控制算法，目前已经在Google内部大范围使用并且随着linux 4.9版本正式发布。不过我个人第一次接触到BBR却是在搭建上网工具的时候，个人体感开启了BBR之后的访问速度明显提高，在这里主要总结一下从网上了解到的相关知识。&lt;/p&gt;
+
+&lt;h2 id=&quot;bbr简介&quot;&gt;BBR简介&lt;/h2&gt;
+
+&lt;p&gt;BBR的名称实际上是bottleneck bandwith and round-trip propagation time的首字母缩写，表明了BBR的主要运行机制：通过检测带宽和RTT这两个指标来进行拥塞控制。 BBR算法的主要特点有以下几个：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;BBR不考虑丢包，因为丢包（在现在这个时代）并不一定是网络出现拥塞的标志了&lt;/li&gt;
+  &lt;li&gt;BBR依赖实时检测的带宽和RTT来决定拥塞窗口的大小：窗口大小 = 带宽 * RTT&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h3 id=&quot;丢包不一定等于发生拥塞&quot;&gt;丢包不一定等于发生拥塞&lt;/h3&gt;
+
+&lt;p&gt;在1988发表的论文《Congestion Avoidance and Control》中，Van Jacobson就提出丢包可以作为发生拥塞的信号，在当时的硬件性能下这个推论是成立的，后续的诸多拥塞控制算法也都是按照这个思路来实现（当然也有例外比如Vegas和Westwood），而如今网卡带宽已经从Mbps增长到了Gbps，丢包与拥塞这两者之间的关联关系也就变得微弱了。&lt;/p&gt;
+
+&lt;p&gt;在现在网络状况下，丢包可能是由于拥塞，也有可能是因为错误。在数据中心内部，错误丢包率并不高（约在十万分之一）；而在广域网上错误丢包率则高得多。更重要的是，在有一定错误丢包率的长肥管道（带宽大、延时高的网络）中，传统的拥塞控制算法会将发送速率收敛到一个比较小的值，导致网络利用率非常低。&lt;/p&gt;
+
+&lt;p&gt;另外，网络链路中很多设备都会有缓冲，用于吸收网络中的波动，提高转发成功率，而传统的基于丢包的拥塞控制算法感知到丢包时，这些缓冲却早已被填满了，这个问题成为bufferbloat（缓冲区膨胀）。而bufferbloat带来的影响主要有两个：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;延时会增加，同时缓冲越大延时增加得越多&lt;/li&gt;
+  &lt;li&gt;共享网络瓶颈的连接较多时，可能会因为缓冲区被填满而发生丢包。但这种丢包并不意味着发生了拥塞&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;总结一句话，时代已经变了，丢包不一定等于拥塞了。&lt;/p&gt;
+
+&lt;h3 id=&quot;基于带宽和rtt决定拥塞窗口&quot;&gt;基于带宽和RTT决定拥塞窗口&lt;/h3&gt;
+
+&lt;p&gt;BBR既然不把丢包作为拥塞出现的信号，就需要找到其他机制来检测拥塞是否出现。Vegas算法基于时延来判断是否出现了拥塞，Westwood算法基于带宽和RTT来决定拥塞窗口的大小，但是受限于linux拥塞控制实现的原因，Westwood计算带宽和RTT的方式十分粗糙。BBR也采用了和Westwood一样的方式，但是它的作者同时改进了linux拥塞控制的实现，使得BBR能够得到更完全的控制。&lt;/p&gt;
+
+&lt;p&gt;一个网路链路能够传输的最大吞吐取决于这条网路链路上的物理时延（Round-Trip Propagation Time，在BBR中简写为RTprop）与链路上速度最低的一段的带宽（Bottle-neck Bandwidth，在BBR中简写为BtlBw）的乘积。这个乘积叫做BDP（Bottle-neck Bandwidth Delay Production），即BDP=BltBw x RTprop，也就是将链路填满数据同时不填充中间链路设备缓冲的最大数据量。BBR追求的就是数据发送速率达到BDP这个最优点。&lt;/p&gt;
+
+&lt;h4 id=&quot;带宽与rtt的测不准原理&quot;&gt;带宽与RTT的测不准原理&lt;/h4&gt;
+
+&lt;p&gt;在一条网络链路上，RTprop和BtlBw实际上是互相独立的两个变量，它们都可能在对方不变的情况下增大或者减小。而要精确地测得延时的最小值，就必须保证网络设备的缓冲为空，链路上的流量越少越好，但此时的带宽就低；要测得带宽的最大值，就必须发送尽可能多的数据来把网络带宽填满，缓冲区就会有部分数据，延时就会上升；这就有点类似物理学中的不确定性原理。&lt;/p&gt;
+
+&lt;p&gt;而BBR对于这个问题的解决方式就是取一定时间范围内的RTprop极小值与BtlBw极大值作为估计值。&lt;/p&gt;
+
+&lt;h2 id=&quot;bbr算法的各个阶段&quot;&gt;BBR算法的各个阶段&lt;/h2&gt;
+
+&lt;p&gt;在连接建立的时候，BBR也采用类似慢启动的方式逐步增加发送速率，然后根据收到的ack计算BDP，当发现BDP不再增长时，就进入拥塞避免阶段（这个过程完全不管有没有丢包）。在慢启动的过程中，由于几乎不会填充中间设备的缓冲区，这过程中的延迟的最小值就是最初估计的最小延迟；而慢启动结束时的最大带宽就是最初的估计的最大延迟。&lt;/p&gt;
+
+&lt;p&gt;慢启动结束之后，为了把慢启动过程中可能填充到缓冲区中的数据排空，BBR会进入排空阶段，这期间会降低发送速率，如果缓冲区中有数据，降低发送速率就会使延时下降（缓冲区逐渐被清空），直到延时不再下降。&lt;/p&gt;
+
+&lt;p&gt;排空阶段结束后，进入稳定状态，这个阶段会交替探测带宽和延迟。带宽探测阶段是一个正反馈系统：定期尝试增加发包速率，如果收到确认的速率也增加了，就进一步增加发包速率。具体来说，以每8个RTT为周期，在第一个RTT中，尝试以估计带宽的5/4的速度发送数据，第二个RTT中，为了把前一个RTT多发出来的包排空，以估计带宽的3/4的速度发送数据。剩下6个RTT里，使用估计的带宽发包（估计带宽可能在前面的过程中更新）。 这个机制使得BBR在带宽增加时能够迅速提高发送速率，而在带宽下降时则需要一定的时间才能降低到稳定的水平。&lt;/p&gt;
+
+&lt;p&gt;除了带宽检测，BBR还会进行最小延时的检测。每过10s，如果最小RTT没有改变（也就是没有发现一个更低的延迟），就进入延迟探测阶段。延迟探测阶段持续的时间仅为 200 毫秒（或一个往返延迟，如果后者更大），这段时间里发送窗口固定为4个包，也就是几乎不发包。这段时间内测得的最小延迟作为新的延迟估计。也就是说，大约有2%的时间BBR会用极低的发包速率来测量延迟。&lt;/p&gt;
+
+&lt;h2 id=&quot;总结&quot;&gt;总结&lt;/h2&gt;
+
+&lt;p&gt;这次主要总结了BBR的特点以及各个阶段，但是BBR并非就是完美的横扫一切的拥塞控制算法，它需要和实际的场景相结合才能发挥威力，后续再继续深入了解了。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">jetty QueuedThreadPool 源码分析</title><link href="http://localhost:4000/2019/12/09/QueuedThreadPool.html" rel="alternate" type="text/html" title="jetty QueuedThreadPool 源码分析" /><published>2019-12-09T00:00:00+08:00</published><updated>2019-12-09T00:00:00+08:00</updated><id>http://localhost:4000/2019/12/09/QueuedThreadPool</id><content type="html" xml:base="http://localhost:4000/2019/12/09/QueuedThreadPool.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+&lt;p&gt;目前手里维护的一个http服务采用的容器是jetty，并且不是spring-boot，连spring都没有，就是手写的jetty server和handler等等。最近在做压测时发现一个奇怪的现象：jetty的线程池在达到满载（最大2000个线程）之后，即使降低了压力，线程池的线程数仍然没有及时的下降到正常水平，而是非常缓慢地下降，大约每两个小时下降1%左右。&lt;/p&gt;
+
+&lt;p&gt;这让我感到很奇怪，明明线程的idle时间设置的是5min，为什么线程数过了很久都没有恢复正常，本以为jetty里的线程池应该和jdk自带的线程池没什么区别，看来事实并不是我想象的那样，于是决定了解下jetty提供的QueuedThreadPool的具体实现（基于9.4.8.v20171121版本）。&lt;/p&gt;
+
+&lt;h2 id=&quot;源码部分&quot;&gt;源码部分&lt;/h2&gt;
+
+&lt;p&gt;我们在项目中使用的是QueuedThreadPool，它继承了AbstractLifeCycle类，同时实现了SizedThreadPool以及Dumpable两个接口。AbstractLifeCycle是jetty中用于管理实例生命周期相关的逻辑，SizedThreadPool则继承自jdk的ThreadPool，在其基础上增加了一些用于获取ThreadPool状态的方法，而Dumpable则声明了将对象dump为string的方法。&lt;/p&gt;
+
+&lt;p&gt;QueuedThreadPool采用了jdk中的ThreadPoolExecutor不同的实现方式，看起来逻辑似乎更简单。&lt;/p&gt;
+
+&lt;h3 id=&quot;成员变量&quot;&gt;成员变量&lt;/h3&gt;
+
+&lt;p&gt;QueuedThreadPool的成员变量并不多，具体列列举如下：&lt;/p&gt;
+
+&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;final&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;AtomicInteger&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_threadsStarted&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;//线程池中一共有多少线程&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;final&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;AtomicInteger&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_threadsIdle&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//线程池中一共有多少空闲的线程&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;final&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;AtomicLong&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_lastShrink&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//上一次“缩小”的时间戳，“缩小”即减少线程数&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;final&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Set&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Thread&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_threads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//线程池中的线程&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;final&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Object&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_joinLock&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//等待所有线程结束用到的lock&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;final&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;BlockingQueue&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Runnable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_jobs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;//线程池任务队列&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;final&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ThreadGroup&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_threadGroup&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//线程池任的线程组&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;String&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_name&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//线程池名称&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_idleTimeout&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//线程空闲的是时间&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_maxThreads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//线程池最大size&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_minThreads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//线程池最下size&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_priority&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//线程池中线程的优先级&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;boolean&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_daemon&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//线程池中线程的daemon属性&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;boolean&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_detailedDump&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//dump线程池时是否打印详细的信息&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_lowThreadsThreshold&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//用于判断线程池是否缺少足够的线程的阈值&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ThreadPoolBudget&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_budget&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//线程池任务队列&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Runnable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_runnable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//线程池中每个线程的主要运行逻辑&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;主要方法&quot;&gt;主要方法&lt;/h3&gt;
+
+&lt;h4 id=&quot;dostart&quot;&gt;doStart&lt;/h4&gt;
+
+&lt;p&gt;doStart实际上是在AbstractLifeCycle中定义的，表示实例生命周期的开始，QueuedThreadPool中的主要实现就是预先启动_minThreads个线程。&lt;/p&gt;
+
+&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;    &lt;span class=&quot;nd&quot;&gt;@Override&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;protected&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;doStart&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;throws&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Exception&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;kd&quot;&gt;super&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;doStart&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;_threadsStarted&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;set&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;startThreads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_minThreads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h4 id=&quot;dostop&quot;&gt;doStop&lt;/h4&gt;
+&lt;p&gt;doStop也是在AbstractLifeCycle中定义的，表示实例生命周期的结束，QueuedThreadPool中的主要实现就是尝试停止所有线程。在停止过程中，会尝试将所有已提交的任务执行完。&lt;/p&gt;
+&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;    &lt;span class=&quot;nd&quot;&gt;@Override&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;protected&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;doStop&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;throws&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Exception&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;kd&quot;&gt;super&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;doStop&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+        &lt;span class=&quot;kt&quot;&gt;long&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;timeout&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;getStopTimeout&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;BlockingQueue&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Runnable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;jobs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;getQueue&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;//如果没有指定stopTimeout，直接清空任务队列&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;timeout&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;jobs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;clear&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;//用noop把队列填满，目前一共有多少个线程就提交多少个noop任务&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;Runnable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;noop&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{};&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_threadsStarted&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;get&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;--&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;jobs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;offer&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;noop&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;//先用stopTimeout一半的时间来让所有任务自然执行完&lt;/span&gt;
+        &lt;span class=&quot;kt&quot;&gt;long&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;stopby&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;nanoTime&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;TimeUnit&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;MILLISECONDS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;toNanos&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;timeout&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Thread&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;thread&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_threads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;kt&quot;&gt;long&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;canwait&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;TimeUnit&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;NANOSECONDS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;toMillis&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;stopby&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;nanoTime&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;());&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;canwait&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+                &lt;span class=&quot;n&quot;&gt;thread&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;join&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;canwait&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;//如果到这里还有任务没执行完，再尝试激进一点的策略&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;//把剩余的线程interrupt一遍&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_threadsStarted&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;get&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Thread&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;thread&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_threads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+                &lt;span class=&quot;n&quot;&gt;thread&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;interrupt&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;//再用stopTimeout一半的时间来让所有任务自然执行完&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;stopby&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;nanoTime&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;TimeUnit&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;MILLISECONDS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;toNanos&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;timeout&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Thread&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;thread&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_threads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;kt&quot;&gt;long&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;canwait&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;TimeUnit&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;NANOSECONDS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;toMillis&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;stopby&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;nanoTime&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;());&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;canwait&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+                &lt;span class=&quot;n&quot;&gt;thread&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;join&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;canwait&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;Thread&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;yield&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+        &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;size&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_threads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;size&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;size&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;//如果还有任务没执行完，就把剩下的线程都打印一遍&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;Thread&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;yield&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;isDebugEnabled&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;())&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Thread&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;unstopped&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_threads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+                &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                    &lt;span class=&quot;n&quot;&gt;StringBuilder&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dmp&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;StringBuilder&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+                    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;StackTraceElement&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;element&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;unstopped&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;getStackTrace&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;())&lt;/span&gt;
+                    &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                        &lt;span class=&quot;n&quot;&gt;dmp&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;append&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;lineSeparator&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()).&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;append&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;\tat &quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;).&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;append&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;element&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+                    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+                    &lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;warn&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;Couldn't stop {}{}&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;unstopped&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dmp&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;toString&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;());&lt;/span&gt;
+                &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Thread&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;unstopped&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_threads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+                    &lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;warn&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;{} Couldn't stop {}&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;unstopped&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_budget&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt;&lt;span class=&quot;kc&quot;&gt;null&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;_budget&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;reset&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+
+        &lt;span class=&quot;kd&quot;&gt;synchronized&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_joinLock&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;_joinLock&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;notifyAll&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;总的来说，结束过程中会在指定的超时时间过去一半的时候把还没执行完的线程都interrupt一下，如果到最后还有任务没执行完，就把它们dump并打印出来。&lt;/p&gt;
+
+&lt;h4 id=&quot;execute&quot;&gt;execute&lt;/h4&gt;
+
+&lt;p&gt;execute即向线程池提交任务的方法，QueuedThreadPool的实现也很简单，就是尝试把任务放到队列里，然后按需创建新的线程。如果入队列失败，则抛出拒绝异常。这里并不向ThreadPoolExecutor一样支持指定reject发生时的处理侧率，而是直接抛出一个拒绝异常。&lt;/p&gt;
+
+&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;    &lt;span class=&quot;nd&quot;&gt;@Override&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;execute&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Runnable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;isDebugEnabled&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;())&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;debug&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;queue {}&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(!&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;isRunning&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;||&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_jobs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;offer&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;//尝试将任务放入队列&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;warn&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;{} rejected {}&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;throw&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;RejectedExecutionException&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;toString&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;());&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;c1&quot;&gt;//如果入队列成果之后发现一个线程都没了，就重新创建一个线程&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;getThreads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+                &lt;span class=&quot;n&quot;&gt;startThreads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h4 id=&quot;线程的主要执行逻辑&quot;&gt;线程的主要执行逻辑&lt;/h4&gt;
+
+&lt;p&gt;线程的主要执行逻辑就是runnable成员变量了，其大体的思路就是：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;线程启动后，开始从任务队列中循环获取任务。&lt;/li&gt;
+  &lt;li&gt;如果能成功获取任务，就执行获取到的任务。&lt;/li&gt;
+  &lt;li&gt;如果无法获取新的任务，则跳出获取任务的循环，将_threadsIdle加一，标识自身进入了idle状态&lt;/li&gt;
+  &lt;li&gt;当自身出于idle状态时，根据指定的条件判断是否需要杀掉空闲的线程&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kd&quot;&gt;private&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Runnable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_runnable&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Runnable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nd&quot;&gt;@Override&lt;/span&gt;
+        &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;run&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;kt&quot;&gt;boolean&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;shrink&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kc&quot;&gt;false&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;//是否杀掉自身的标识&lt;/span&gt;
+            &lt;span class=&quot;kt&quot;&gt;boolean&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ignore&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kc&quot;&gt;false&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;&lt;span class=&quot;c1&quot;&gt;//自身是否属于意外退出的标识&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;try&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                &lt;span class=&quot;n&quot;&gt;Runnable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_jobs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;poll&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt; &lt;span class=&quot;err&quot;&gt;从队列中获取任务，不会阻塞&lt;/span&gt;
+                &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;job&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt; &lt;span class=&quot;kc&quot;&gt;null&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_threadsIdle&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;get&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; 
+                &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                    &lt;span class=&quot;c1&quot;&gt;//如果获取到了任务，同时没有空闲线程，就创建一个线程。这里是否有必要？&lt;/span&gt;
+                    &lt;span class=&quot;c1&quot;&gt;//虽然_threadsIdle，但是当前线程不就是空闲的吗？看9.4.24.v20191120版本的实现里已经没有这逻辑了&lt;/span&gt;
+                    &lt;span class=&quot;n&quot;&gt;startThreads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+                &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+                &lt;span class=&quot;nl&quot;&gt;loop:&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;while&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;isRunning&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;())&lt;/span&gt;
+                &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                    &lt;span class=&quot;c1&quot;&gt;//循环获取任务并执行&lt;/span&gt;
+                    &lt;span class=&quot;k&quot;&gt;while&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;job&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt; &lt;span class=&quot;kc&quot;&gt;null&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;isRunning&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;())&lt;/span&gt;
+                    &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;isDebugEnabled&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;())&lt;/span&gt;
+                            &lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;debug&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;run {}&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+                        &lt;span class=&quot;n&quot;&gt;runJob&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+                        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;isDebugEnabled&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;())&lt;/span&gt;
+                            &lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;debug&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;ran {}&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+                        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Thread&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;interrupted&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;())&lt;/span&gt;
+                        &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                            &lt;span class=&quot;n&quot;&gt;ignore&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;kc&quot;&gt;true&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+                            &lt;span class=&quot;k&quot;&gt;break&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;loop&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+                        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+                        &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_jobs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;poll&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+                    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+                    &lt;span class=&quot;c1&quot;&gt;//进入空闲状态&lt;/span&gt;
+                    &lt;span class=&quot;k&quot;&gt;try&lt;/span&gt;
+                    &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                        &lt;span class=&quot;n&quot;&gt;_threadsIdle&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;incrementAndGet&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+                        &lt;span class=&quot;k&quot;&gt;while&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;isRunning&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;kc&quot;&gt;null&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+                        &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                            &lt;span class=&quot;c1&quot;&gt;//如果没有指定idleTimeout，就阻塞地尝试获取任务&lt;/span&gt;
+                            &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_idleTimeout&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+                                &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_jobs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;take&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+                            &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt;
+                            &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                                &lt;span class=&quot;c1&quot;&gt;//判断是否需要结束自己：1. size大于_minThreads 2. 距离上次结束线程超过了_idleTimeout&lt;/span&gt;
+                                &lt;span class=&quot;kd&quot;&gt;final&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;size&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_threadsStarted&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;get&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+                                &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;size&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_minThreads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+                                &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                                    &lt;span class=&quot;kt&quot;&gt;long&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;last&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_lastShrink&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;get&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+                                    &lt;span class=&quot;kt&quot;&gt;long&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;now&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;nanoTime&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+                                    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;last&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;||&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;now&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;last&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;TimeUnit&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;MILLISECONDS&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;toNanos&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_idleTimeout&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;))&lt;/span&gt;
+                                    &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                                        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_lastShrink&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;compareAndSet&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;last&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;now&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_threadsStarted&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;compareAndSet&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;size&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;size&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;))&lt;/span&gt;
+                                        &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                                            &lt;span class=&quot;c1&quot;&gt;//如果满足结束的条件，就跳出外层循环，结束执行&lt;/span&gt;
+                                            &lt;span class=&quot;n&quot;&gt;shrink&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;kc&quot;&gt;true&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+                                            &lt;span class=&quot;k&quot;&gt;break&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;loop&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+                                        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+                                    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+                                &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+                                &lt;span class=&quot;c1&quot;&gt;//如果不满足结束的条件，就尝试阻塞获取任务，同时超时时间为idleTimeout&lt;/span&gt;
+                                &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;idleJobPoll&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
+                            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+                        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+                    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+                    &lt;span class=&quot;k&quot;&gt;finally&lt;/span&gt;
+                    &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_threadsIdle&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;decrementAndGet&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+                        &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                            &lt;span class=&quot;n&quot;&gt;startThreads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+                        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+                    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+                &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;catch&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;InterruptedException&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                &lt;span class=&quot;n&quot;&gt;ignore&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;kc&quot;&gt;true&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
+                &lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;ignore&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;catch&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Throwable&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                &lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;warn&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;finally&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(!&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;shrink&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;isRunning&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;())&lt;/span&gt;
+                &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+                    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(!&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ignore&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
+                        &lt;span class=&quot;n&quot;&gt;LOG&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;warn&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;Unexpected thread death: {} in {}&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;QueuedThreadPool&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;this&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+                    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_threadsStarted&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;decrementAndGet&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;()&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;getMaxThreads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;())&lt;/span&gt;
+                        &lt;span class=&quot;n&quot;&gt;startThreads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
+                &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+                &lt;span class=&quot;n&quot;&gt;_threads&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;remove&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Thread&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;currentThread&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;());&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;};&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;总结&quot;&gt;总结&lt;/h2&gt;
+
+&lt;p&gt;可以看出QueuedThreadPool比jdk中的ThreadPoolExecutor确实简单的多，而回到最开始的问题，线程池size迟迟不下降的原因就是线程池对idleTimeout的处理方式：当线程出于idle状态时，它就有可能被结束，但只是有可能而不是一定，因为每次结束一个线程都要间隔idleTimeout指定的时间。而我们的项目里指定线程数最大是2000，idleTimeout是5min，就表示每5min才会结束一个线程，所以线程池size下降的速度才会这么慢。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言 目前手里维护的一个http服务采用的容器是jetty，并且不是spring-boot，连spring都没有，就是手写的jetty server和handler等等。最近在做压测时发现一个奇怪的现象：jetty的线程池在达到满载（最大2000个线程）之后，即使降低了压力，线程池的线程数仍然没有及时的下降到正常水平，而是非常缓慢地下降，大约每两个小时下降1%左右。</summary></entry><entry><title type="html">各种TCP拥塞控制算法</title><link href="http://localhost:4000/2019/11/24/TCP-algorithms.html" rel="alternate" type="text/html" title="各种TCP拥塞控制算法" /><published>2019-11-24T00:00:00+08:00</published><updated>2019-11-24T00:00:00+08:00</updated><id>http://localhost:4000/2019/11/24/TCP%20algorithms</id><content type="html" xml:base="http://localhost:4000/2019/11/24/TCP-algorithms.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+
+&lt;p&gt;自从TCP拥塞控制的概念提出以来，TCP拥塞控制算法经历了一系列的演化。这里根据网上的资料大致总结一下各个TCP拥塞控制算法。&lt;/p&gt;
+
+&lt;h2 id=&quot;tcp-tahoereno&quot;&gt;TCP Tahoe/Reno&lt;/h2&gt;
+
+&lt;p&gt;最初的实现，包括慢启动、拥塞避免两个部分。基于重传超时（retransmission timeout/RTO）和重复确认为条件判断是否发生了丢包。两者的区别在于：Tahoe算法下如果收到三次重复确认，就进入快重传立即重发丢失的数据包，同时将慢启动阈值设置为当前拥塞窗口的一半，将拥塞窗口设置为1MSS，进入慢启动状态；而Reno算法如果收到三次重复确认，就进入快重传，但不进入慢启动状态，而是直接将拥塞窗口减半，进入拥塞控制阶段，这称为“快恢复”。&lt;/p&gt;
+
+&lt;p&gt;而Tahoe和Reno算法在出现RTO时的措施一致，都是将拥塞窗口降为1个MSS，然后进入慢启动阶段。&lt;/p&gt;
+
+&lt;h2 id=&quot;tcp-vegas&quot;&gt;TCP Vegas&lt;/h2&gt;
+
+&lt;p&gt;TCP Vegas算法由 Lawrence Brakmo 和 Larry L. Peterson 在1994年提出，它和其他拥塞控制算法的不同之处在于Vegas算法并不急于丢包来判断是否发生了拥塞，而是通过数据包延迟来判断。Vegas通过RTT（roundtrip time）来决定增加或者减小拥塞窗口，它能够拥塞将要发生时就避免拥塞，而不是等到拥塞已经发生之后再减小发送速度，因此能够减小重传和超时的几率。Vegas算法与其他算法（比如Reno）共存时，会由于比其他算法更先降低发送速率而出现公平性问题。&lt;/p&gt;
+
+&lt;h2 id=&quot;tcp-new-reno&quot;&gt;TCP New Reno&lt;/h2&gt;
+
+&lt;p&gt;TCP New Reno主要改进了TCP Reno中快速恢复阶段的重传。&lt;/p&gt;
+
+&lt;p&gt;在Reno的快恢复中，一旦出现3次重复确认，TCP发送方会重发数据包并设置定时器等待该重发数据包被确认。当重发的数据包被确认后，就立即退出快速恢复阶段，进入拥塞控制阶段。但如果一次拥塞中出现多个丢包，Reno会误以为发生了多次拥塞而重复减小拥塞窗口导致发送速率下降。&lt;/p&gt;
+
+&lt;p&gt;而在New Reno的快速恢复中，一旦出现3次重复确认，会记下出现重复确认时未确认的数据包的最大序列号，然后重发重复确认的数据包。如果有多个数据包丢失，则继续重发丢失的数据包，知道最大序列号的数据包被确认才推出快恢复阶段。&lt;/p&gt;
+
+&lt;p&gt;New Reno在低错误率时运行效率和“选择确认”（Selective ACKnowledgement，SACK）相当，在高错误率仍优于Reno。&lt;/p&gt;
+
+&lt;h2 id=&quot;tcp-biccubic&quot;&gt;TCP BIC/CUBIC&lt;/h2&gt;
+
+&lt;p&gt;TCP BIC（Binary Increase Congestion control）旨在优化高速高延迟网络（即“长肥网络”（long fat network，LFN））的拥塞控制，其拥塞窗口算法使用二分搜索算法尝试找到能长时间保持拥塞窗口最大值的值。Linux内核在2.6.8至2.6.18使用该算法作为默认TCP拥塞算法。&lt;/p&gt;
+
+&lt;p&gt;BIC算法采用二分查找的方式来确定最大的窗口大小：如果发生丢包时窗口大小是W1，那么最大窗口Wmax应该小于W1；这时将窗口缩小到W2（乘以一个系数，也就是乘法减小），那么可以预期W1&amp;gt;Wmax&amp;gt;W2；这时再将窗口大小设置为(W1+W2)2（也就是二分查找），即每收到一个ACK就把窗口大小设置为两个界限的中点。&lt;/p&gt;
+
+&lt;p&gt;如果窗口大小已经无限逼近W1，说明网络状况又变好了（可用带宽增加了），这时BIC会尝试往上寻找更大的Wmax。而在往上寻找时，BIC会镜像的利用逼近当前Wmax的路径去搜寻，也就是前面是如何先快后慢慢地靠近当前Wmax的，后面就反过来先慢后快地增长。&lt;/p&gt;
+
+&lt;p&gt;而CUBIC则是比BIC更温和和系统化的分支版本，其使用三次函数代替二分算法作为其拥塞窗口算法（因为实际上BIC的搜索曲线看起来就像一个三次函数，所以干脆就写一个三次函数来模拟曲线），并且使用函数拐点作为拥塞窗口的设置值。Linux内核在2.6.19后使用该算法作为默认TCP拥塞算法。&lt;/p&gt;
+
+&lt;h2 id=&quot;tcp-westwoodwestwood&quot;&gt;TCP Westwood/Westwood+&lt;/h2&gt;
+
+&lt;p&gt;TCP Westwood改良自New Reno，不同于以往其他拥塞控制算法使用丢失来测量，其通过对确认包测量来确定一个“合适的发送速度”，并以此调整拥塞窗口和慢启动阈值。Westwood改良了慢启动阶段算法为“敏捷探测（Agile Probing）”，并且设计了一种持续探测拥塞窗口的方法来控制进入“敏捷探测”，使连接尽可能地使用更多的带宽。Westwood+使用更长的带宽估计间隔和优化的滤波器来修正Westwood对ACK压缩场景对带宽估计过高的问题。通过以上改良，TCP Westwood系列算法在有线网络和无线网络的拥塞控制上取得平衡，尤其研究中针对于无线通信网络上。&lt;/p&gt;
+
+&lt;h2 id=&quot;compound-tcp&quot;&gt;Compound TCP&lt;/h2&gt;
+
+&lt;p&gt;Compound TCP是微软自己实现的TCP拥塞控制算法，通过同时维护两个拥塞窗口，来实现在长肥网络有较好的性能而又不损失公平性。CTCP维护两个拥塞窗口：一个常规的AIMD（英语：Additive increase/multiplicative decrease）窗口，以及一个基于延迟的窗口，最终实际使用的滑动窗口大小是这两个窗口的和。AIMD窗口与Reno的增加方式相同；如果延迟小，基于延迟的窗口将迅速增加以提高网络的利用率。一旦经历了排队，延迟窗口将逐渐减小以补偿增加的AIMD窗口。这样的目的是保持两者的总和大致恒定，使算法估计带宽时延积的路径。&lt;/p&gt;
+
+&lt;h2 id=&quot;tcp-prr&quot;&gt;TCP PRR&lt;/h2&gt;
+&lt;p&gt;TCP PRR（TCP Proportional Rate Reduction ）是旨在恢复期间提高发送数据的准确性。该算法确保恢复后的拥塞窗口大小尽可能接近慢启动阈值&lt;/p&gt;
+
+&lt;h2 id=&quot;tcp-bbr&quot;&gt;TCP BBR&lt;/h2&gt;
+&lt;p&gt;TCP BBR（Bottleneck Bandwidth and Round-trip propagation time）是由Google设计，于2016年发布的拥塞算法。以往大部分拥塞算法是基于丢包来作为降低传输速率的信号，而BBR则基于模型主动探测。该算法使用网络最近出站数据分组当时的最大带宽和往返时间来建立网络的显式模型。数据包传输的每个累积或选择性确认用于生成记录在数据包传输过程和确认返回期间的时间内所传送数据量的采样率。该算法认为随着网络接口控制器逐渐进入千兆速度时，分组丢失不应该被认为是识别拥塞的主要决定因素，所以基于模型的拥塞控制算法能有更高的吞吐量和更低的延迟，可以用BBR来替代其他流行的拥塞算法，例如CUBIC。&lt;/p&gt;
+
+&lt;h2 id=&quot;总结&quot;&gt;总结&lt;/h2&gt;
+
+&lt;p&gt;可以看出，TCP拥塞控制主要是：1、探测是否出现拥塞；2、出现拥塞时如何反应。&lt;/p&gt;
+
+&lt;p&gt;最初的算法是基于丢包来判断是否发生了拥塞，一旦出现拥塞之后就降低发送速率来避免拥塞。后面有出现了基于RTT判断拥塞的算法，但是这种算法会因为太“君子”而提前减小发送速率（让出带宽），从而可能被共存的其他算法进一步压榨产生公平性问题。微软的CTCP通过维护两个窗口来避免这种公平性问题，一个AIMD的窗口来保证不被其他人压榨，另一个基于延迟的窗口能够保证有带宽时能迅速提高来提高带宽利用率。而BBR则直接采用主动探测的方式来判断拥塞是否发生。&lt;/p&gt;
+
+&lt;p&gt;当出现拥塞之后，通常需要降低发送速率来避免拥塞进一步加剧，而不同算法在这时的处理都不尽相同，最初的算法通过直接降低发送速率到1来简单处理，但是这种方式太过粗暴，后续的其他算法也都做了不同的尝试。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">jvm safepoint</title><link href="http://localhost:4000/2019/11/17/safepoint.html" rel="alternate" type="text/html" title="jvm safepoint" /><published>2019-11-17T00:00:00+08:00</published><updated>2019-11-17T00:00:00+08:00</updated><id>http://localhost:4000/2019/11/17/safepoint</id><content type="html" xml:base="http://localhost:4000/2019/11/17/safepoint.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
 
 &lt;p&gt;多线程编程是一件很难的事，或者说编写在多线程条件下运行良好的代码很难。java提供了synchronized和volatile关键字，还有Lock类和Atomic相关的类来帮助我们正确的实现并发逻辑，但我在实际工作中仍倾向于尽量避免并发，还有一个偷懒的做法就是需要并发访问的变量总是加上volatile修饰。&lt;/p&gt;
 
@@ -753,262 +1113,4 @@ org.quartz.jobStore.class: org.quartz.simpl.RAMJobStore
 
 &lt;p&gt;quartz中的JobStore负责储存Job和Trigger定义，它主要与QuartzScheduler交互。按照约定，Job和Trigger的存储都使用group+name的组合作为标识。&lt;/p&gt;
 
-&lt;p&gt;目前quartz提供基于内存的实现以及基于JDBC的实现。基于内存的实现把所有Job和Trigger定义存在内存中，一旦重启所有数据就会丢失；基于JDBC的实现将数据存放在数据库中，同时还支持事务。&lt;/p&gt;</content><author><name></name></author><summary type="html">quartz简介</summary></entry><entry><title type="html">Linux磁盘缓存机制</title><link href="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html" rel="alternate" type="text/html" title="Linux磁盘缓存机制" /><published>2019-08-18T00:00:00+08:00</published><updated>2019-08-18T00:00:00+08:00</updated><id>http://localhost:4000/2019/08/18/Linux%20Disk%20Cache</id><content type="html" xml:base="http://localhost:4000/2019/08/18/Linux-Disk-Cache.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
-
-&lt;p&gt;最近遇到了一起跟磁盘IO相关的线上故障，借此总结一下之前不太了解的Linux磁盘缓存相关的知识。&lt;/p&gt;
-
-&lt;p&gt;总的来说磁盘缓存出现的原因大概有两个：第一是访问磁盘的速度远慢于访问内存的速度，通过在内存中缓存磁盘内容可以提高访问速度；第二是根据程序的局部性原理，数据一旦被访问过，就很有可能在短时间内再次被访问，所以在内存中缓存磁盘内容可以提高程序运行速度。&lt;/p&gt;
-
-&lt;h3 id=&quot;局部性原理&quot;&gt;局部性原理&lt;/h3&gt;
-
-&lt;p&gt;程序局部性原理：程序在执行时呈现出局部性规律，即在一段时间内，整个程序的执行仅限于程序中的某一部分。相应地，执行所访问的存储空间也局限于某个内存区域，具体来说，局部性通常有两种形式：时间局部性和空间局部性。&lt;/p&gt;
-
-&lt;p&gt;时间局部性：被引用过一次的存储器位置在未来会被多次引用（通常在循环中）。&lt;/p&gt;
-
-&lt;p&gt;空间局部性：如果一个存储器的位置被引用，那么将来他附近的位置也会被引用。&lt;/p&gt;
-
-&lt;h2 id=&quot;页缓存&quot;&gt;页缓存&lt;/h2&gt;
-
-&lt;p&gt;Linux系统中为了减少对磁盘的IO操作，会将打开的磁盘内容进行缓存，而缓存的地方则是物理内存，进而将对磁盘的访问转换成对内存的访问，有效提高程序的速度。Linux的缓存方式是利用物理内存缓存磁盘上的内容，称为页缓存（page cache）。&lt;/p&gt;
-
-&lt;p&gt;页缓存是由内存中的物理页面组成的，其内容对应磁盘上的物理块。页缓存的大小会根据系统的内存空闲大小进行动态调整，它可以通过占用内存以扩张大小，也可以自我收缩以缓解内存使用压力。&lt;/p&gt;
-
-&lt;p&gt;在虚拟内存机制出现以前，操作系统使用块缓存系列，但是在虚拟内存出现以后，操作系统管理IO的粒度更大，因此采用了页缓存机制，页缓存是基于页的、面向文件的缓存机制。&lt;/p&gt;
-
-&lt;h3 id=&quot;页缓存的读取&quot;&gt;页缓存的读取&lt;/h3&gt;
-
-&lt;p&gt;Linux系统在读取文件时，会优先从页缓存中读取文件内容，如果页缓存不存在，系统会先从磁盘中读取文件内容更新到页缓存中，然后再从页缓存中读取文件内容并返回。大致过程如下：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;进程调用库函数read发起读取文件请求&lt;/li&gt;
-  &lt;li&gt;内核检查已打开的文件列表，调用文件系统提供的read接口&lt;/li&gt;
-  &lt;li&gt;找到文件对应的inode，然后计算出要读取的具体的页&lt;/li&gt;
-  &lt;li&gt;通过inode查找对应的页缓存，1）如果页缓存节点命中，则直接返回文件内容；2）如果没有对应的页缓存，则会产生一个缺页异常（page fault）。这时系统会创建新的空的页缓存并从磁盘中读取文件内容，更新页缓存，然后重复第4步&lt;/li&gt;
-  &lt;li&gt;读取文件返回&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;所以说，所有的文件内容的读取，无论最初有没有命中页缓存，最终都是直接来源于页缓存。&lt;/p&gt;
-
-&lt;h3 id=&quot;页缓存的写入&quot;&gt;页缓存的写入&lt;/h3&gt;
-
-&lt;p&gt;因为页缓存的存在，当一个进程调用write时，对文件的更新仅仅是被写到了文件的页缓存中，让后将对应的页标记为dirty，整个过程就结束了。Linux内核会在周期性地将脏页写回到磁盘，然后清理掉dirty标识。&lt;/p&gt;
-
-&lt;p&gt;由于写操作只会把变更写入页缓存，因此进程并不会因此为阻塞直到磁盘IO发生，如果此时计算机崩溃，写操作的变更可能并没有发生在磁盘上。所以对于一些要求比较严格的写操作，比如数据系统，就需要主动调用fsync等操作及时将变更同步到磁盘上。读操作则不同，read通常会阻塞直到进程读取到数据，而为了减少读操作的这种延迟，Linux系统还是用了“预读”的技术，即从磁盘中读取数据时，内核将会多读取一些页到页缓存中。&lt;/p&gt;
-
-&lt;h4 id=&quot;回写线程&quot;&gt;回写线程&lt;/h4&gt;
-
-&lt;p&gt;页缓存的回写是由内核中的单独的线程来完成的，回写线程会在以下3种情况下进行回写：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;空闲内存低于阈值时。当空闲内存不足时，需要释放掉一部分缓存，由于只有不脏的页才能被释放，所以需要把脏页都回写到磁盘，使其变为可回收的干净的页。&lt;/li&gt;
-  &lt;li&gt;脏页在内存中处理时间超过阈值时。这是为了确保脏页不会无限期的留在内存中，减少数据丢失的风险。&lt;/li&gt;
-  &lt;li&gt;当用户进程调用sync和fsync系统调用时。这是为了给用户进程提供强制回写的方法，满足回写要求严格的使用场景。&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;回写线程的实现
-|    名称    | 版本 |  说明  |
-| ———- | — | —– |
-| bdflush |  2.6版本以前 | bdflush 内核线程在后台运行，系统中只有一个 bdflush 线程，当内存消耗到特定阀值以下时，bdflush 线程被唤醒。kupdated 周期性的运行，写回脏页。 但是整个系统仅仅只有一个 bdflush 线程，当系统回写任务较重时，bdflush 线程可能会阻塞在某个磁盘的I/O上，导致其他磁盘的I/O回写操作不能及时执行。|
-| pdflush       |  2.6版本引入 | pdflush 线程数目是动态的，取决于系统的I/O负载。它是面向系统中所有磁盘的全局任务的。 但是由于 pdflush 是面向所有磁盘的，所以有可能出现多个 pdflush 线程全部阻塞在某个拥塞的磁盘上，同样导致其他磁盘的I/O回写不能及时执行。|
-| flusher线程       |  2.6.32版本以后引入 | flusher 线程的数目不是唯一的，同时flusher线程不是面向所有磁盘的，而是每个flusher线程对应一个磁盘|&lt;/p&gt;
-
-&lt;h3 id=&quot;页缓存的回收&quot;&gt;页缓存的回收&lt;/h3&gt;
-
-&lt;p&gt;Linux中页缓存的替换逻辑是一个修改过的LRU实现，也称为双链策略。和以前不同，Linux维护的不再是一个LRU链表，而是维护两个链表：活跃链表和非活跃链表。处于活跃链表上的页面被认为是“热”的且不会被换出，而在非活跃链表上的页面则是可以被换出的。在活跃链表中的页面必须在其被访问时就处于非活跃链表中。两个链表都被伪LRU规则维护：页面从尾部加入，从头部移除，如同队列。两个链表需要维持平衡–如果活跃链表变得过多而超过了非活跃链表，那么活跃链表的头页面将被重新移回到非活跃链表中，一遍能再被回收。双链表策略解决了传统LRU算法中对仅一次访问的窘境。而且也更加简单的实现了伪LRU语义。这种双链表方式也称作LRU/2。更普遍的是n个链表，故称LRU/n。&lt;/p&gt;
-
-&lt;h2 id=&quot;总结&quot;&gt;总结&lt;/h2&gt;
-
-&lt;p&gt;在这次遇到的线上故障中，根本原因在于在业务逻辑中使用了临时文件做缓存，一个临时文件创建后如果在短时间内删除，这时候对这个文件的操作都是在页缓存内进行，不会实际回写到磁盘。当程序出现问题响应变慢时，临时文件存活时间变长，就可能会使其被回写到磁盘上，导致磁盘压力过大，进而影响整个系统。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">netty中的epoll实现</title><link href="http://localhost:4000/2019/08/03/Netty-Epoll.html" rel="alternate" type="text/html" title="netty中的epoll实现" /><published>2019-08-03T00:00:00+08:00</published><updated>2019-08-03T00:00:00+08:00</updated><id>http://localhost:4000/2019/08/03/Netty%20Epoll</id><content type="html" xml:base="http://localhost:4000/2019/08/03/Netty-Epoll.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
-
-&lt;p&gt;在java中，IO多路复用的功能通过nio中的&lt;code class=&quot;highlighter-rouge&quot;&gt;Selector&lt;/code&gt;提供，在不同的操作系统下jdk会通过spi的方式加载不同的实现，比如在macos下是&lt;code class=&quot;highlighter-rouge&quot;&gt;KQueueSelectorProvider&lt;/code&gt;，&lt;code class=&quot;highlighter-rouge&quot;&gt;KQueueSelectorProvider&lt;/code&gt;底层使用了kqueue来进行IO多路复用；在linux 2.6以后的版本则是&lt;code class=&quot;highlighter-rouge&quot;&gt;EPollSelectorProvider&lt;/code&gt;，&lt;code class=&quot;highlighter-rouge&quot;&gt;EPollSelectorProvider&lt;/code&gt;底层使用的是epoll。虽然jdk自身提供了selector的epoll实现，netty仍实现了自己的epoll版本，根据&lt;a href=&quot;https://stackoverflow.com/a/23465481&quot;&gt;netty开发者在StackOverflow的回答&lt;/a&gt;，主要原因有两个：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;支持更多socket option，比如TCP_CORK和SO_REUSEPORT&lt;/li&gt;
-  &lt;li&gt;使用了边缘触发（ET）模式&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;接下来就来看看netty自己实现的epoll版本的大概逻辑。&lt;/p&gt;
-
-&lt;h2 id=&quot;总体介绍&quot;&gt;总体介绍&lt;/h2&gt;
-
-&lt;h3 id=&quot;使用方式&quot;&gt;使用方式&lt;/h3&gt;
-
-&lt;p&gt;在netty中，如果需要使用netty自己的epoll实现，需要在项目中添加netty-transport-native-epoll依赖，然后将代码中的&lt;code class=&quot;highlighter-rouge&quot;&gt;NioEvnetLoop&lt;/code&gt;、&lt;code class=&quot;highlighter-rouge&quot;&gt;NioSocketChannel&lt;/code&gt;、&lt;code class=&quot;highlighter-rouge&quot;&gt;NioServerSocketChannel&lt;/code&gt;等替换为Epoll开头的类即可。具体参考&lt;a href=&quot;https://netty.io/wiki/native-transports.html&quot;&gt;Using the Linux native transport&lt;/a&gt;&lt;/p&gt;
-
-&lt;h3 id=&quot;与jdk原生实现的区别&quot;&gt;与jdk原生实现的区别&lt;/h3&gt;
-
-&lt;p&gt;总的来说，不管是jdk还是netty的版本，都是直接调用了linux的epoll来提供IO多路复用，netty的epoll实现与jdk的区别主要有两个：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;使用了边缘触发（可以参考我的&lt;a href=&quot;https://juejin.im/post/5cdaa67f518825691b4a5cc0&quot;&gt;另一篇文章&lt;/a&gt;）&lt;/li&gt;
-  &lt;li&gt;使用了eventfd和timerfd来实现唤醒和超时控制，而jdk的实现则是使用了pipe和epoll自带的超时机制&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h2 id=&quot;具体实现&quot;&gt;具体实现&lt;/h2&gt;
-
-&lt;h3 id=&quot;初始化&quot;&gt;初始化&lt;/h3&gt;
-
-&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;EpollEventLoop&lt;/code&gt;在初始化时会创建三个fd：epollFd、eventFd、timerFd。epollFd用于进一步调用epoll_wait，而另外两个fd的作用前面已经提到了。除此之外，&lt;code class=&quot;highlighter-rouge&quot;&gt;EpollEventLoop&lt;/code&gt;内部还维护了一个&lt;code class=&quot;highlighter-rouge&quot;&gt;selectStrategy&lt;/code&gt;变量，&lt;code class=&quot;highlighter-rouge&quot;&gt;selectStrategy&lt;/code&gt;用于决定当前的loop中的行为，内容不算复杂，具体的就不再展开了。&lt;/p&gt;
-
-&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;EpollEventLoop&lt;/code&gt;还维护了一个&lt;code class=&quot;highlighter-rouge&quot;&gt;EpollEventArray&lt;/code&gt;类型的对象events，events就是epoll调用时的第二个参数，表示感兴趣的描述符集合，这个变量会被传递到native方法中。&lt;/p&gt;
-
-&lt;p&gt;此外&lt;code class=&quot;highlighter-rouge&quot;&gt;EpollEventLoop&lt;/code&gt;还有一个&lt;code class=&quot;highlighter-rouge&quot;&gt;IntObjectMap&amp;lt;AbstractEpollChannel&amp;gt;&lt;/code&gt;类型的channels字段，表示当前EventLoop注册的所有Channel对象，其中key是channel对应的fd（文件描述符），因为epoll中接受的参数和返回的结果都是以整数形式的文件描述符表示的，value就是一个Channel对象，后续对Channel进行读写都会从这里查找（注：这里使用的IntObjectMap是netty自己实现的集合，主要目的是提升使用原生类型作为key或者value时的集合的性能，类似的实现还有hppc、FastUtil等等）。&lt;/p&gt;
-
-&lt;h3 id=&quot;注册感兴趣的连接&quot;&gt;注册感兴趣的连接&lt;/h3&gt;
-
-&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;EpollEventLoop&lt;/code&gt;的&lt;code class=&quot;highlighter-rouge&quot;&gt;doRegister&lt;/code&gt;方法中实现了注册连接的逻辑，就是调用&lt;code class=&quot;highlighter-rouge&quot;&gt;EpollEventLoop&lt;/code&gt;的&lt;code class=&quot;highlighter-rouge&quot;&gt;add&lt;/code&gt;方法：&lt;/p&gt;
-
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;    &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;add&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;AbstractEpollChannel&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ch&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;throws&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;IOException&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-        &lt;span class=&quot;k&quot;&gt;assert&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;inEventLoop&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-        &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fd&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ch&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;socket&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;intValue&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;Native&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;epollCtlAdd&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;epollFd&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;intValue&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fd&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ch&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;flags&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-        &lt;span class=&quot;n&quot;&gt;AbstractEpollChannel&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;old&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;channels&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;put&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fd&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ch&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-    &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;可以看到这里调用了&lt;code class=&quot;highlighter-rouge&quot;&gt;Native.epolCtlAdd&lt;/code&gt;，从名字就可以看出来，底层是调用了epoll_ctl方法，然后op参数为EPOLL_ADD。&lt;/p&gt;
-
-&lt;h3 id=&quot;事件循环&quot;&gt;事件循环&lt;/h3&gt;
-
-&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;EpollEventLoop&lt;/code&gt;的主体就在它的&lt;code class=&quot;highlighter-rouge&quot;&gt;run&lt;/code&gt;方法里，在&lt;code class=&quot;highlighter-rouge&quot;&gt;run&lt;/code&gt;方法的主循环中会先通过&lt;code class=&quot;highlighter-rouge&quot;&gt;selectStrategy&lt;/code&gt;决定要进行的操作是epollWait还是epollBusyWait。epollWait和epollBusyWait的区别就在于前者会计算出适合的超时时间然后调用一次epoll_wait直到有描述符就绪或超时，而后者会循环调用epoll_wait并将超时时间设置为0（也就是立即返回）直到有连接就绪为止。&lt;/p&gt;
-
-&lt;p&gt;通过epollWait或者epollBusyWait获得的结果会保存在events当中，所以接下来就是调用&lt;code class=&quot;highlighter-rouge&quot;&gt;processReady&lt;/code&gt;处理events中的各个就绪的fd。处理的过程就是根据fd从channels查到对应的channel然后进行读写等操作，详细的读写就不再展开介绍了。&lt;/p&gt;
-
-&lt;h3 id=&quot;超时和唤醒&quot;&gt;超时和唤醒&lt;/h3&gt;
-
-&lt;p&gt;前面提到了，netty的epoll逻辑中使用了eventfd和timerfd来实现唤醒和超时控制，evnetfd和timerfd从linux 2.6.22版本开始加入内核，其主要功能就是提供事件通知机制。eventfd可以创建一个文件描述符，在这个描述符上可以传递无符号整数，可以用来作为控制信息。timerfd也是创建一个文件描述符，在这个描述符上可以读取定时器事件，timerfd可以支持到纳秒级别。由于eventfd和timerfd都是基于描述符的，所以和select/poll/epoll这些api都比较契合。&lt;/p&gt;
-
-&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;EpollEventLoop&lt;/code&gt;在初始化时会首先创建epollfd、eventfd和timerfd，然后把eventfd和timerfd都加入到epoll的监听队列当中。eventfd用来做唤醒的支持，当需要唤醒&lt;code class=&quot;highlighter-rouge&quot;&gt;EpollEventLoop&lt;/code&gt;时，就往eventfd写入一个数，这时eventfd就会变得可读，epoll就会及时返回。timerfd则作为epoll的超时控制，当需要超时的时候就在timerfd上设置一个时间间隔，超时时间到了之后timerfd就会变得可读，epoll也就会及时返回。这里使用timerfd作为超时控制而不是使用epoll自带的超时的原因大概有两个，一是使用timerfd可以用统一的处理方式对待超时事件和IO事件，二是timerfd支持的超时时间精度更高。&lt;/p&gt;
-
-&lt;p&gt;顺便提一下，在jdk原生的实现中，唤醒是通过pipe实现的，&lt;code class=&quot;highlighter-rouge&quot;&gt;Selector&lt;/code&gt;内部维护了一个pipe，初始化时将pipe的read端加入epoll的监听队列，当需要唤醒时就在pipe的write端写入数据，这样epoll就会及时返回。epoll返回后如果发现pipe可读，则将pipe中的数据读取完。&lt;/p&gt;
-
-&lt;h2 id=&quot;其他&quot;&gt;其他&lt;/h2&gt;
-
-&lt;p&gt;在之前的文章中提到过，将fd注册到epoll时如果采用了边缘触发，那么建议的使用方式是将fd设置为非阻塞模式，并且在描述符就绪时需要将就绪数据全部读取完（遇到EAGAIN）为止，否则可能会出现再也无法收到就绪通知的情况。&lt;/p&gt;
-
-&lt;p&gt;而在netty的epoll实现中，所有的socket都是以ET模式注册的，而eventfd和timerfd则稍有不同。在netty 4.1.38.Final以前的版本，eventfd在注册到epollfd时使用时LT而不是ET，在每次processReady时如果eventfd可读则都会对其调用一次read。timerfd在注册到epollfd时使用的时ET，但是在每次processReady时如果timerfd可读也会对其调用一次read。而在4.1.38.Final版本，eventfd和timerfd都使用了ET，但是并不在processReady方法中读取这两个fd。对于eventfd，会在每次write返回EAGAIN时调用一次read，因为eventfd内部只能存储一个整数，所以当write出现EAGAIN时就说明目前有数据需要读取。而对于timerfd则只会在epollWait出现超时的时候调用一次read，其他情况下不会对timerfd调用read。因为在netty的实现中，每次进行epoll_wait时都会重新设置timerfd的超时时间，而每次更新timerfd的超时时间时，timerfd就会重新变为不可读状态，也就不用对其调用read了。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">linux 线程机制</title><link href="http://localhost:4000/2019/07/28/LinuxThread&NPTL.html" rel="alternate" type="text/html" title="linux 线程机制" /><published>2019-07-28T00:00:00+08:00</published><updated>2019-07-28T00:00:00+08:00</updated><id>http://localhost:4000/2019/07/28/LinuxThread&amp;NPTL</id><content type="html" xml:base="http://localhost:4000/2019/07/28/LinuxThread&amp;NPTL.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
-
-&lt;p&gt;前面提到进程和线程的区别，进程是资源分配的基本单位，线程是程序执行的基本单位。线程都属于某个进程，而同一个进程下的不同线程分别有共享和独享的数据，这里在列举一下：&lt;/p&gt;
-
-&lt;p&gt;同一进程内的所有线程除了共享全局变量外还共享：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;进程指令&lt;/li&gt;
-  &lt;li&gt;大多数数据&lt;/li&gt;
-  &lt;li&gt;打开的文件（即描述符）&lt;/li&gt;
-  &lt;li&gt;信号处理函数和信号处置&lt;/li&gt;
-  &lt;li&gt;当前工作目录&lt;/li&gt;
-  &lt;li&gt;用户ID和组ID&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;不过每个线程有各自的：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;线程ID&lt;/li&gt;
-  &lt;li&gt;寄存器集合，包括程序计数器和栈指针&lt;/li&gt;
-  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;errno&lt;/code&gt;&lt;/li&gt;
-  &lt;li&gt;信号掩码&lt;/li&gt;
-  &lt;li&gt;优先级&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;linux是遵循POSIX标准的操作系统，所以linux也需要提供遵循POSIX标准的线程实现。而最初linux系统中的线程机制则是LinuxThreads，在2.6版本之后又增加了NPTL（Native POSIX Thread Library）。&lt;/p&gt;
-
-&lt;h3 id=&quot;内核线程和用户线程&quot;&gt;内核线程和用户线程&lt;/h3&gt;
-
-&lt;p&gt;对于线程的实现机制来说，通常可以选择在内核内或者内核外实现，这两种方式的区别在于线程是在核内还是核外调度。核内调度更利于并发使用多处理器的资源，内核可以将同一个进程的不同线程调度到不同处理器上执行，当某个线程阻塞时，内核可以将处理器调度到同一个进程的另一个线程。而核外调度的上下文切换开销更低，因为线程的切换不用陷入内核态。&lt;/p&gt;
-
-&lt;h3 id=&quot;进程-线程模型&quot;&gt;进程-线程模型&lt;/h3&gt;
-
-&lt;p&gt;当内核既支持进程也支持线程时，就可以实现线程-进程的”多对多”模型，即一个进程的某个线程由核内调度，而同时它也可以作为用户级线程池的调度者，选择合适的用户级线程在其空间中运行。这样既可满足多处理机系统的需要，也可以最大限度的减小调度开销。&lt;/p&gt;
-
-&lt;p&gt;在内核外实现的线程又可以分为”一对一”、”多对一”两种模型，前者用一个内核进程对应一个线程，将线程调度等同于进程调度，交给内核完成，而后者则完全在核外实现多线程，调度也在用户态完成。后者就是前面提到的单纯的用户级线程模型的实现方式，显然，这种核外的线程调度器实际上只需要完成线程运行栈的切换，调度开销非常小，但同时因为内核信号都是以进程为单位的，因而无法定位到线程，所以这种实现方式不能用于多处理器系统。&lt;/p&gt;
-
-&lt;h3 id=&quot;linux的轻量级进程&quot;&gt;linux的轻量级进程&lt;/h3&gt;
-
-&lt;p&gt;linux内核只提供了轻量进程的支持，限制了更高效的线程模型的实现，但linux着重优化了进程的调度开销，一定程度上也弥补了这一缺陷。目前linux的线程机制都采用的线程-进程”一对一”模型，调度交给内核，而在用户级实现一个包括信号处理在内的线程管理机制。&lt;/p&gt;
-
-&lt;p&gt;linux内核在2.0.x版本就已经实现了轻量进程，应用程序可以通过一个统一的&lt;code class=&quot;highlighter-rouge&quot;&gt;clone&lt;/code&gt;系统调用接口，用不同的参数指定创建轻量进程还是普通进程。在内核中，&lt;code class=&quot;highlighter-rouge&quot;&gt;clone&lt;/code&gt;调用经过参数传递和解释后会调用&lt;code class=&quot;highlighter-rouge&quot;&gt;do_fork&lt;/code&gt;，这个核内函数同时也是&lt;code class=&quot;highlighter-rouge&quot;&gt;fork&lt;/code&gt;、&lt;code class=&quot;highlighter-rouge&quot;&gt;vfork&lt;/code&gt;系统调用的最终实现：&lt;/p&gt;
-
-&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;intdo_fork&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;unsignedlongclone_flags&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;unsignedlongstack_start&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;structpt_regs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;regs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;unsignedlongstack_size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;在do_fork&lt;/code&gt;中，不同的clone_flags将导致不同的行为（共享不同的资源），下面列举几个flag的作用。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;CLONE_VM&lt;/strong&gt;
-如果&lt;code class=&quot;highlighter-rouge&quot;&gt;do_fork&lt;/code&gt;时指定了&lt;code class=&quot;highlighter-rouge&quot;&gt;CLONE_VM&lt;/code&gt;开关，创建的轻量级进程的内存空间将会和父进程指向同一个地址，即创建的轻量级进程将与父进程共享内存地址空间。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;CLONE_FS&lt;/strong&gt;&lt;/p&gt;
-
-&lt;p&gt;如果&lt;code class=&quot;highlighter-rouge&quot;&gt;do_fork&lt;/code&gt;时指定了&lt;code class=&quot;highlighter-rouge&quot;&gt;CLONE_FS&lt;/code&gt;开关，对于轻量级进程则会与父进程共享相同的所在文件系统的根目录和当前目录信息。也就是说，轻量级进程没有独立的文件系统相关的信息，进程中任何一个线程改变当前目录、根目录等信息都将直接影响到其他线程。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;CLONE_FILES&lt;/strong&gt;&lt;/p&gt;
-
-&lt;p&gt;如果&lt;code class=&quot;highlighter-rouge&quot;&gt;do_fork&lt;/code&gt;时指定了&lt;code class=&quot;highlighter-rouge&quot;&gt;CLONE_FILES&lt;/code&gt;开关，创建的轻量级进程与父进程将会共享已经打开的文件。这一共享使得任何线程都能访问进程所维护的打开文件，对它们的操作会直接反映到进程中的其他线程。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;CLONE_SIGHAND&lt;/strong&gt;&lt;/p&gt;
-
-&lt;p&gt;如果&lt;code class=&quot;highlighter-rouge&quot;&gt;do_fork&lt;/code&gt;时指定了&lt;code class=&quot;highlighter-rouge&quot;&gt;CLONE_FILES&lt;/code&gt;开关，轻量级进程与父进程将会共享对信号的处理方式。也就是说，子进程与父进程的信号处理方式完全相同，而且可以相互更改。&lt;/p&gt;
-
-&lt;p&gt;尽管linux支持轻量级进程，但并不能说它就支持内核线程，因为linux的”线程”和”进程”实际上处于一个调度层次，共享一个进程标识符空间，这种限制使得不可能在linux上实现完全意义上的POSIX线程机制，因此众多的linux线程库实现尝试都只能尽可能实现POSIX的绝大部分语义，并在功能上尽可能逼近。&lt;/p&gt;
-
-&lt;h2 id=&quot;linuxthreads的线程机制&quot;&gt;LinuxThreads的线程机制&lt;/h2&gt;
-
-&lt;p&gt;LinuxThreads是linux平台上使用过的一个线程库。它所实现的就是基于内核轻量级进程的”一对一”线程模型，一个线程实体对应一个核心轻量级进程，而线程之间的管理在核外函数库中实现。对于LinuxThreads，它使用&lt;code class=&quot;highlighter-rouge&quot;&gt;(CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND)&lt;/code&gt;参数来调用&lt;code class=&quot;highlighter-rouge&quot;&gt;clone&lt;/code&gt;创建”线程”，表示共享内存、共享文件系统访问计数、共享文件描述符表，以及共享信号处理方式。&lt;/p&gt;
-
-&lt;h3 id=&quot;管理线程&quot;&gt;管理线程&lt;/h3&gt;
-
-&lt;p&gt;LinuxThreads最初的设计相信相关进程之间的上下文切换速度很快，因此每个内核线程足以处理很多相关的用户级线程。LinuxThreads非常出名的一个特性就是管理线程（manager thread）。在LinuxThreads中，专门为每一个进程构造了一个管理线程，负责处理线程相关的管理工作。当进程第一次调用&lt;code class=&quot;highlighter-rouge&quot;&gt;pthread_create&lt;/code&gt;创建一个线程的时候就会创建并启动管理线程。&lt;/p&gt;
-
-&lt;p&gt;在一个进程空间内，管理线程与其他线程之间通过一对”管理管道（manager_pipe[2]）”来通讯，该管道在创建管理线程之前创建，在成功启动了管理线程之后，管理管道的读端和写端分别赋给两个全局变量&lt;code class=&quot;highlighter-rouge&quot;&gt;__pthread_manager_reader&lt;/code&gt;和&lt;code class=&quot;highlighter-rouge&quot;&gt;__pthread_manager_request&lt;/code&gt;，之后，每个用户线程都通过&lt;code class=&quot;highlighter-rouge&quot;&gt;__pthread_manager_request&lt;/code&gt;向管理线程发请求，但管理线程本身并没有直接使用&lt;code class=&quot;highlighter-rouge&quot;&gt;__pthread_manager_reader&lt;/code&gt;，管道的读端（manager_pipe[0]）是作为&lt;code class=&quot;highlighter-rouge&quot;&gt;__clone()&lt;/code&gt;的参数之一传给管理线程的，管理线程的工作主要就是监听管道读端，并对从中取出的请求作出反应。&lt;/p&gt;
-
-&lt;p&gt;管理线程在进行一系列初始化工作后，进入while(1)循环。在循环中，线程以2秒为timeout查询（__poll()）管理管道的读端。在处理请求前，检查其父线程是否已退出，如果已退出就退出整个进程。如果有退出的子线程需要清理，则进行清理。然后才是读取管道中的请求，根据请求类型执行相应操作（switch-case）。&lt;/p&gt;
-
-&lt;p&gt;每个LinuxThreads线程都同时具有线程id和进程id，其中进程id就是内核所维护的进程号，而线程id则由LinuxThreads分配和维护。&lt;/p&gt;
-
-&lt;h3 id=&quot;linuxthreads的局限性&quot;&gt;LinuxThreads的局限性&lt;/h3&gt;
-
-&lt;p&gt;LinuxThreads的设计通常都可以很好地工作；但是在压力很大的应用程序中，它的性能、可伸缩性和可用性都会存在问题。下面让我们来看一下LinuxThreads设计的一些局限性：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;进程id问题：linux内核并不支持真正意义上的线程，LinuxThreads是用与普通进程具有同样内核调度视图的轻量级进程来实现线程支持的。这些轻量级进程拥有独立的进程id，在进程调度、信号处理、IO等方面享有与普通进程一样的能力。在源码阅读者看来，就是linux内核的&lt;code class=&quot;highlighter-rouge&quot;&gt;clone&lt;/code&gt;没有实现对CLONE_PID参数的支持。按照POSIX定义，同一进程的所有线程应该共享一个进程id和父进程id，这在目前的”一对一”模型下是无法实现的。&lt;/li&gt;
-  &lt;li&gt;管理线程容易成为瓶颈，这是这种结构的通病；同时，管理线程又负责用户线程的清理工作，因此，尽管管理线程已经屏蔽了大部分的信号，但一旦管理线程死亡，用户线程就不得不手工清理了，而且用户线程并不知道管理线程的状态，之后的线程创建等请求将无人处理。&lt;/li&gt;
-  &lt;li&gt;信号用来实现同步原语，这会影响操作的响应时间。另外，将信号发送到主进程的概念也并不存在。因此，这并不遵守POSIX中处理信号的方法。&lt;/li&gt;
-  &lt;li&gt;LinuxThreads中对信号的处理是按照每线程的原则建立的，而不是按照每进程的原则建立的，这是因为每个线程都有一个独立的进程ID。由于信号被发送给了一个专用的线程，因此信号是串行化的——也就是说，信号是透过这个线程再传递给其他线程的。这与POSIX标准对线程进行并行处理的要求形成了鲜明的对比。例如，在LinuxThreads中，通过kill()所发送的信号被传递到一些单独的线程，而不是集中整体进行处理。这意味着如果有线程阻塞了这个信号，那么LinuxThreads就只能对这个线程进行排队，并在线程开放这个信号时在执行处理，而不是像其他没有阻塞信号的线程中一样立即处理这个信号。&lt;/li&gt;
-  &lt;li&gt;由于LinuxThreads中的每个线程都是一个进程，因此用户和组ID的信息可能对单个进程中的所有线程来说都不是通用的。例如，一个多线程的setuid()/setgid()进程对于不同的线程来说可能都是不同的。&lt;/li&gt;
-  &lt;li&gt;由于每个线程都是一个单独的进程，因此/proc目录中会充满众多的进程项，而这实际上应该是线程。&lt;/li&gt;
-  &lt;li&gt;由于每个线程都是一个进程，因此对每个应用程序只能创建有限数目的线程。&lt;/li&gt;
-  &lt;li&gt;由于计算线程本地数据的方法是基于堆栈地址的位置的，因此对于这些数据的访问速度都很慢。另外一个缺点是用户无法可信地指定堆栈的大小，因为用户可能会意外地将堆栈地址映射到本来要为其他目的所使用的区域上了。按需增长（growondemand）的概念（也称为浮动堆栈的概念）是在2.4.10版本的linux内核中实现的。在此之前，LinuxThreads使用的是固定堆栈。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h2 id=&quot;nptl&quot;&gt;NPTL&lt;/h2&gt;
-
-&lt;p&gt;NPTL（Native POSIX Thread Library）是linux线程的一个新实现，它克服了LinuxThreads的缺点，同时也符合POSIX的需求。与LinuxThreads相比，它在性能和稳定性方面都提供了重大的改进。与LinuxThreads一样，NPTL也实现了一对一的模型。&lt;/p&gt;
-
-&lt;p&gt;NPTL出现的一部分原因是对LinuxThreads进行改进，它设计目标如下：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;这个新线程库应该兼容POSIX标准。&lt;/li&gt;
-  &lt;li&gt;这个线程实现应该在具有很多处理器的系统上也能很好地工作。&lt;/li&gt;
-  &lt;li&gt;为一小段任务创建新线程应该具有很低的启动成本。&lt;/li&gt;
-  &lt;li&gt;NPTL线程库应该与LinuxThreads是二进制兼容的。&lt;/li&gt;
-  &lt;li&gt;这个新线程库应该可以利用NUMA支持的优点。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h3 id=&quot;nptl的优点&quot;&gt;NPTL的优点&lt;/h3&gt;
-
-&lt;p&gt;NPTL总的来说采用了LinuxThreads类似的解决办法，内核看到的依然是一个进程，新线程是通过&lt;code class=&quot;highlighter-rouge&quot;&gt;clone()&lt;/code&gt;系统调用产生的。与LinuxThreads相比，NPTL具有很多优点：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;NPTL没有使用管理线程。管理线程的一些需求，例如向作为进程一部分的所有线程发送终止信号，是并不需要的；因为内核本身就可以实现这些功能。内核还会处理每个线程堆栈所使用的内存的回收工作。它甚至还通过在清除父线程之前进行等待，从而实现对所有线程结束的管理，这样可以避免僵尸进程的问题。&lt;/li&gt;
-  &lt;li&gt;由于NPTL没有使用管理线程，因此其线程模型在NUMA和SMP系统上具有更好的可伸缩性和同步机制。&lt;/li&gt;
-  &lt;li&gt;使用NPTL线程库与新内核实现，就可以避免使用信号来对线程进行同步了。为了这个目的，NPTL引入了一种名为&lt;code class=&quot;highlighter-rouge&quot;&gt;futex&lt;/code&gt;的新机制。&lt;code class=&quot;highlighter-rouge&quot;&gt;futex&lt;/code&gt;在共享内存区域上进行工作，因此可以在进程之间进行共享，这样就可以提供进程间POSIX同步机制。我们也可以在进程之间共享一个&lt;code class=&quot;highlighter-rouge&quot;&gt;futex&lt;/code&gt;。这种行为使得进程间同步成为可能。实际上，NPTL包含了一个&lt;code class=&quot;highlighter-rouge&quot;&gt;PTHREAD_PROCESS_SHARED&lt;/code&gt;宏，使得开发人员可以让用户级进程在不同进程的线程之间共享互斥锁。&lt;/li&gt;
-  &lt;li&gt;由于NPTL是POSIX兼容的，因此它对信号的处理是按照每进程的原则进行的；getpid()会为所有的线程返回相同的进程ID。例如，如果发送了SIGSTOP信号，那么整个进程都会停止；使用LinuxThreads，只有接收到这个信号的线程才会停止。这样可以在基于NPTL的应用程序上更好地利用调试器，例如GDB。&lt;/li&gt;
-  &lt;li&gt;由于在NPTL中所有线程都具有一个父进程，因此对父进程汇报的资源使用情况（例如CPU和内存百分比）都是对整个进程进行统计的，而不是对一个线程进行统计的。&lt;/li&gt;
-  &lt;li&gt;NPTL线程库所引入的一个实现特性是对ABI（应用程序二进制接口）的支持。这帮助实现了与LinuxThreads的向后兼容性。这个特性是通过使用&lt;code class=&quot;highlighter-rouge&quot;&gt;LD_ASSUME_KERNEL&lt;/code&gt;实现的。&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h3 id=&quot;futex&quot;&gt;futex&lt;/h3&gt;
-
-&lt;p&gt;futex（Fast Userspace muTexes）意为快速用户区互斥，它是linux提供的一种同步（互斥）机制，特点是对于条件的判断是发生在用户空间的，在竞争不激烈的情况下能有更好的性能表现。futex在2.6.x系列稳定版内核中出现。&lt;/p&gt;
-
-&lt;p&gt;futex由一块能够被多个进程共享的内存空间（一个对齐后的整型变量）组成；这个整型变量的值能够通过汇编语言调用CPU提供的原子操作指令来增加或减少，并且一个进程可以等待直到那个值变成正数。Futex 的操作几乎全部在用户空间完成；只有当操作结果不一致从而需要仲裁时，才需要进入操作系统内核空间执行。这种机制允许使用 futex 的锁定原语有非常高的执行效率：由于绝大多数的操作并不需要在多个进程之间进行仲裁，所以绝大多数操作都可以在应用程序空间执行，而不需要使用（相对高代价的）内核系统调用。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry></feed>
+&lt;p&gt;目前quartz提供基于内存的实现以及基于JDBC的实现。基于内存的实现把所有Job和Trigger定义存在内存中，一旦重启所有数据就会丢失；基于JDBC的实现将数据存放在数据库中，同时还支持事务。&lt;/p&gt;</content><author><name></name></author><summary type="html">quartz简介</summary></entry></feed>

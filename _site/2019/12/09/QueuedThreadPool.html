@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>jetty QueuedThreadPool 源码分析 | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="jetty QueuedThreadPool 源码分析" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="前言 目前手里维护的一个http服务采用的容器是jetty，并且不是spring-boot，连spring都没有，就是手写的jetty server和handler等等。最近在做压测时发现一个奇怪的现象：jetty的线程池在达到满载（最大2000个线程）之后，即使降低了压力，线程池的线程数仍然没有及时的下降到正常水平，而是非常缓慢地下降，大约每两个小时下降1%左右。" />
+<meta property="og:description" content="前言 目前手里维护的一个http服务采用的容器是jetty，并且不是spring-boot，连spring都没有，就是手写的jetty server和handler等等。最近在做压测时发现一个奇怪的现象：jetty的线程池在达到满载（最大2000个线程）之后，即使降低了压力，线程池的线程数仍然没有及时的下降到正常水平，而是非常缓慢地下降，大约每两个小时下降1%左右。" />
+<link rel="canonical" href="http://localhost:4000/2019/12/09/QueuedThreadPool.html" />
+<meta property="og:url" content="http://localhost:4000/2019/12/09/QueuedThreadPool.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2019-12-09T00:00:00+08:00" />
+<script type="application/ld+json">
+{"description":"前言 目前手里维护的一个http服务采用的容器是jetty，并且不是spring-boot，连spring都没有，就是手写的jetty server和handler等等。最近在做压测时发现一个奇怪的现象：jetty的线程池在达到满载（最大2000个线程）之后，即使降低了压力，线程池的线程数仍然没有及时的下降到正常水平，而是非常缓慢地下降，大约每两个小时下降1%左右。","@type":"BlogPosting","url":"http://localhost:4000/2019/12/09/QueuedThreadPool.html","headline":"jetty QueuedThreadPool 源码分析","dateModified":"2019-12-09T00:00:00+08:00","datePublished":"2019-12-09T00:00:00+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/12/09/QueuedThreadPool.html"},"@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">jetty QueuedThreadPool 源码分析</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2019-12-09T00:00:00+08:00" itemprop="datePublished">Dec 9, 2019
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="前言">前言</h2>
+<p>目前手里维护的一个http服务采用的容器是jetty，并且不是spring-boot，连spring都没有，就是手写的jetty server和handler等等。最近在做压测时发现一个奇怪的现象：jetty的线程池在达到满载（最大2000个线程）之后，即使降低了压力，线程池的线程数仍然没有及时的下降到正常水平，而是非常缓慢地下降，大约每两个小时下降1%左右。</p>
+
+<p>这让我感到很奇怪，明明线程的idle时间设置的是5min，为什么线程数过了很久都没有恢复正常，本以为jetty里的线程池应该和jdk自带的线程池没什么区别，看来事实并不是我想象的那样，于是决定了解下jetty提供的QueuedThreadPool的具体实现（基于9.4.8.v20171121版本）。</p>
+
+<h2 id="源码部分">源码部分</h2>
+
+<p>我们在项目中使用的是QueuedThreadPool，它继承了AbstractLifeCycle类，同时实现了SizedThreadPool以及Dumpable两个接口。AbstractLifeCycle是jetty中用于管理实例生命周期相关的逻辑，SizedThreadPool则继承自jdk的ThreadPool，在其基础上增加了一些用于获取ThreadPool状态的方法，而Dumpable则声明了将对象dump为string的方法。</p>
+
+<p>QueuedThreadPool采用了jdk中的ThreadPoolExecutor不同的实现方式，看起来逻辑似乎更简单。</p>
+
+<h3 id="成员变量">成员变量</h3>
+
+<p>QueuedThreadPool的成员变量并不多，具体列列举如下：</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    <span class="kd">private</span> <span class="kd">final</span> <span class="n">AtomicInteger</span> <span class="n">_threadsStarted</span><span class="o">;</span> <span class="c1">//线程池中一共有多少线程</span>
+    <span class="kd">private</span> <span class="kd">final</span> <span class="n">AtomicInteger</span> <span class="n">_threadsIdle</span><span class="o">;</span><span class="c1">//线程池中一共有多少空闲的线程</span>
+    <span class="kd">private</span> <span class="kd">final</span> <span class="n">AtomicLong</span> <span class="n">_lastShrink</span><span class="o">;</span><span class="c1">//上一次“缩小”的时间戳，“缩小”即减少线程数</span>
+    <span class="kd">private</span> <span class="kd">final</span> <span class="n">Set</span><span class="o">&lt;</span><span class="n">Thread</span><span class="o">&gt;</span> <span class="n">_threads</span><span class="o">;</span><span class="c1">//线程池中的线程</span>
+    <span class="kd">private</span> <span class="kd">final</span> <span class="n">Object</span> <span class="n">_joinLock</span><span class="o">;</span><span class="c1">//等待所有线程结束用到的lock</span>
+    <span class="kd">private</span> <span class="kd">final</span> <span class="n">BlockingQueue</span><span class="o">&lt;</span><span class="n">Runnable</span><span class="o">&gt;</span> <span class="n">_jobs</span><span class="o">;</span> <span class="c1">//线程池任务队列</span>
+    <span class="kd">private</span> <span class="kd">final</span> <span class="n">ThreadGroup</span> <span class="n">_threadGroup</span><span class="o">;</span><span class="c1">//线程池任的线程组</span>
+    <span class="kd">private</span> <span class="n">String</span> <span class="n">_name</span><span class="o">;</span><span class="c1">//线程池名称</span>
+    <span class="kd">private</span> <span class="kt">int</span> <span class="n">_idleTimeout</span><span class="o">;</span><span class="c1">//线程空闲的是时间</span>
+    <span class="kd">private</span> <span class="kt">int</span> <span class="n">_maxThreads</span><span class="o">;</span><span class="c1">//线程池最大size</span>
+    <span class="kd">private</span> <span class="kt">int</span> <span class="n">_minThreads</span><span class="o">;</span><span class="c1">//线程池最下size</span>
+    <span class="kd">private</span> <span class="kt">int</span> <span class="n">_priority</span><span class="o">;</span><span class="c1">//线程池中线程的优先级</span>
+    <span class="kd">private</span> <span class="kt">boolean</span> <span class="n">_daemon</span><span class="o">;</span><span class="c1">//线程池中线程的daemon属性</span>
+    <span class="kd">private</span> <span class="kt">boolean</span> <span class="n">_detailedDump</span><span class="o">;</span><span class="c1">//dump线程池时是否打印详细的信息</span>
+    <span class="kd">private</span> <span class="kt">int</span> <span class="n">_lowThreadsThreshold</span><span class="o">;</span><span class="c1">//用于判断线程池是否缺少足够的线程的阈值</span>
+    <span class="kd">private</span> <span class="n">ThreadPoolBudget</span> <span class="n">_budget</span><span class="o">;</span><span class="c1">//线程池任务队列</span>
+    <span class="kd">private</span> <span class="n">Runnable</span> <span class="n">_runnable</span><span class="o">;</span><span class="c1">//线程池中每个线程的主要运行逻辑</span>
+</code></pre></div></div>
+
+<h3 id="主要方法">主要方法</h3>
+
+<h4 id="dostart">doStart</h4>
+
+<p>doStart实际上是在AbstractLifeCycle中定义的，表示实例生命周期的开始，QueuedThreadPool中的主要实现就是预先启动_minThreads个线程。</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    <span class="nd">@Override</span>
+    <span class="kd">protected</span> <span class="kt">void</span> <span class="nf">doStart</span><span class="o">()</span> <span class="kd">throws</span> <span class="n">Exception</span>
+    <span class="o">{</span>
+        <span class="kd">super</span><span class="o">.</span><span class="na">doStart</span><span class="o">();</span>
+        <span class="n">_threadsStarted</span><span class="o">.</span><span class="na">set</span><span class="o">(</span><span class="mi">0</span><span class="o">);</span>
+        <span class="n">startThreads</span><span class="o">(</span><span class="n">_minThreads</span><span class="o">);</span>
+    <span class="o">}</span>
+</code></pre></div></div>
+
+<h4 id="dostop">doStop</h4>
+<p>doStop也是在AbstractLifeCycle中定义的，表示实例生命周期的结束，QueuedThreadPool中的主要实现就是尝试停止所有线程。在停止过程中，会尝试将所有已提交的任务执行完。</p>
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    <span class="nd">@Override</span>
+    <span class="kd">protected</span> <span class="kt">void</span> <span class="nf">doStop</span><span class="o">()</span> <span class="kd">throws</span> <span class="n">Exception</span>
+    <span class="o">{</span>
+        <span class="kd">super</span><span class="o">.</span><span class="na">doStop</span><span class="o">();</span>
+        <span class="kt">long</span> <span class="n">timeout</span> <span class="o">=</span> <span class="n">getStopTimeout</span><span class="o">();</span>
+        <span class="n">BlockingQueue</span><span class="o">&lt;</span><span class="n">Runnable</span><span class="o">&gt;</span> <span class="n">jobs</span> <span class="o">=</span> <span class="n">getQueue</span><span class="o">();</span>
+        <span class="c1">//如果没有指定stopTimeout，直接清空任务队列</span>
+        <span class="k">if</span> <span class="o">(</span><span class="n">timeout</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="o">)</span>
+            <span class="n">jobs</span><span class="o">.</span><span class="na">clear</span><span class="o">();</span>
+        <span class="c1">//用noop把队列填满，目前一共有多少个线程就提交多少个noop任务</span>
+        <span class="n">Runnable</span> <span class="n">noop</span> <span class="o">=</span> <span class="o">()</span> <span class="o">-&gt;</span> <span class="o">{};</span>
+        <span class="k">for</span> <span class="o">(</span><span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="n">_threadsStarted</span><span class="o">.</span><span class="na">get</span><span class="o">();</span> <span class="n">i</span><span class="o">--</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="o">;</span> <span class="o">)</span>
+            <span class="n">jobs</span><span class="o">.</span><span class="na">offer</span><span class="o">(</span><span class="n">noop</span><span class="o">);</span>
+        <span class="c1">//先用stopTimeout一半的时间来让所有任务自然执行完</span>
+        <span class="kt">long</span> <span class="n">stopby</span> <span class="o">=</span> <span class="n">System</span><span class="o">.</span><span class="na">nanoTime</span><span class="o">()</span> <span class="o">+</span> <span class="n">TimeUnit</span><span class="o">.</span><span class="na">MILLISECONDS</span><span class="o">.</span><span class="na">toNanos</span><span class="o">(</span><span class="n">timeout</span><span class="o">)</span> <span class="o">/</span> <span class="mi">2</span><span class="o">;</span>
+        <span class="k">for</span> <span class="o">(</span><span class="n">Thread</span> <span class="n">thread</span> <span class="o">:</span> <span class="n">_threads</span><span class="o">)</span>
+        <span class="o">{</span>
+            <span class="kt">long</span> <span class="n">canwait</span> <span class="o">=</span> <span class="n">TimeUnit</span><span class="o">.</span><span class="na">NANOSECONDS</span><span class="o">.</span><span class="na">toMillis</span><span class="o">(</span><span class="n">stopby</span> <span class="o">-</span> <span class="n">System</span><span class="o">.</span><span class="na">nanoTime</span><span class="o">());</span>
+            <span class="k">if</span> <span class="o">(</span><span class="n">canwait</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="o">)</span>
+                <span class="n">thread</span><span class="o">.</span><span class="na">join</span><span class="o">(</span><span class="n">canwait</span><span class="o">);</span>
+        <span class="o">}</span>
+        <span class="c1">//如果到这里还有任务没执行完，再尝试激进一点的策略</span>
+        <span class="c1">//把剩余的线程interrupt一遍</span>
+        <span class="k">if</span> <span class="o">(</span><span class="n">_threadsStarted</span><span class="o">.</span><span class="na">get</span><span class="o">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="o">)</span>
+            <span class="k">for</span> <span class="o">(</span><span class="n">Thread</span> <span class="n">thread</span> <span class="o">:</span> <span class="n">_threads</span><span class="o">)</span>
+                <span class="n">thread</span><span class="o">.</span><span class="na">interrupt</span><span class="o">();</span>
+        <span class="c1">//再用stopTimeout一半的时间来让所有任务自然执行完</span>
+        <span class="n">stopby</span> <span class="o">=</span> <span class="n">System</span><span class="o">.</span><span class="na">nanoTime</span><span class="o">()</span> <span class="o">+</span> <span class="n">TimeUnit</span><span class="o">.</span><span class="na">MILLISECONDS</span><span class="o">.</span><span class="na">toNanos</span><span class="o">(</span><span class="n">timeout</span><span class="o">)</span> <span class="o">/</span> <span class="mi">2</span><span class="o">;</span>
+        <span class="k">for</span> <span class="o">(</span><span class="n">Thread</span> <span class="n">thread</span> <span class="o">:</span> <span class="n">_threads</span><span class="o">)</span>
+        <span class="o">{</span>
+            <span class="kt">long</span> <span class="n">canwait</span> <span class="o">=</span> <span class="n">TimeUnit</span><span class="o">.</span><span class="na">NANOSECONDS</span><span class="o">.</span><span class="na">toMillis</span><span class="o">(</span><span class="n">stopby</span> <span class="o">-</span> <span class="n">System</span><span class="o">.</span><span class="na">nanoTime</span><span class="o">());</span>
+            <span class="k">if</span> <span class="o">(</span><span class="n">canwait</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="o">)</span>
+                <span class="n">thread</span><span class="o">.</span><span class="na">join</span><span class="o">(</span><span class="n">canwait</span><span class="o">);</span>
+        <span class="o">}</span>
+        <span class="n">Thread</span><span class="o">.</span><span class="na">yield</span><span class="o">();</span>
+        <span class="kt">int</span> <span class="n">size</span> <span class="o">=</span> <span class="n">_threads</span><span class="o">.</span><span class="na">size</span><span class="o">();</span>
+        <span class="k">if</span> <span class="o">(</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="o">)</span> <span class="c1">//如果还有任务没执行完，就把剩下的线程都打印一遍</span>
+        <span class="o">{</span>
+            <span class="n">Thread</span><span class="o">.</span><span class="na">yield</span><span class="o">();</span>
+            <span class="k">if</span> <span class="o">(</span><span class="n">LOG</span><span class="o">.</span><span class="na">isDebugEnabled</span><span class="o">())</span>
+            <span class="o">{</span>
+                <span class="k">for</span> <span class="o">(</span><span class="n">Thread</span> <span class="n">unstopped</span> <span class="o">:</span> <span class="n">_threads</span><span class="o">)</span>
+                <span class="o">{</span>
+                    <span class="n">StringBuilder</span> <span class="n">dmp</span> <span class="o">=</span> <span class="k">new</span> <span class="n">StringBuilder</span><span class="o">();</span>
+                    <span class="k">for</span> <span class="o">(</span><span class="n">StackTraceElement</span> <span class="n">element</span> <span class="o">:</span> <span class="n">unstopped</span><span class="o">.</span><span class="na">getStackTrace</span><span class="o">())</span>
+                    <span class="o">{</span>
+                        <span class="n">dmp</span><span class="o">.</span><span class="na">append</span><span class="o">(</span><span class="n">System</span><span class="o">.</span><span class="na">lineSeparator</span><span class="o">()).</span><span class="na">append</span><span class="o">(</span><span class="s">"\tat "</span><span class="o">).</span><span class="na">append</span><span class="o">(</span><span class="n">element</span><span class="o">);</span>
+                    <span class="o">}</span>
+                    <span class="n">LOG</span><span class="o">.</span><span class="na">warn</span><span class="o">(</span><span class="s">"Couldn't stop {}{}"</span><span class="o">,</span> <span class="n">unstopped</span><span class="o">,</span> <span class="n">dmp</span><span class="o">.</span><span class="na">toString</span><span class="o">());</span>
+                <span class="o">}</span>
+            <span class="o">}</span>
+            <span class="k">else</span>
+            <span class="o">{</span>
+                <span class="k">for</span> <span class="o">(</span><span class="n">Thread</span> <span class="n">unstopped</span> <span class="o">:</span> <span class="n">_threads</span><span class="o">)</span>
+                    <span class="n">LOG</span><span class="o">.</span><span class="na">warn</span><span class="o">(</span><span class="s">"{} Couldn't stop {}"</span><span class="o">,</span><span class="k">this</span><span class="o">,</span><span class="n">unstopped</span><span class="o">);</span>
+            <span class="o">}</span>
+        <span class="o">}</span>
+        <span class="k">if</span> <span class="o">(</span><span class="n">_budget</span><span class="o">!=</span><span class="kc">null</span><span class="o">)</span>
+            <span class="n">_budget</span><span class="o">.</span><span class="na">reset</span><span class="o">();</span>
+
+        <span class="kd">synchronized</span> <span class="o">(</span><span class="n">_joinLock</span><span class="o">)</span>
+        <span class="o">{</span>
+            <span class="n">_joinLock</span><span class="o">.</span><span class="na">notifyAll</span><span class="o">();</span>
+        <span class="o">}</span>
+    <span class="o">}</span>
+</code></pre></div></div>
+
+<p>总的来说，结束过程中会在指定的超时时间过去一半的时候把还没执行完的线程都interrupt一下，如果到最后还有任务没执行完，就把它们dump并打印出来。</p>
+
+<h4 id="execute">execute</h4>
+
+<p>execute即向线程池提交任务的方法，QueuedThreadPool的实现也很简单，就是尝试把任务放到队列里，然后按需创建新的线程。如果入队列失败，则抛出拒绝异常。这里并不向ThreadPoolExecutor一样支持指定reject发生时的处理侧率，而是直接抛出一个拒绝异常。</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    <span class="nd">@Override</span>
+    <span class="kd">public</span> <span class="kt">void</span> <span class="nf">execute</span><span class="o">(</span><span class="n">Runnable</span> <span class="n">job</span><span class="o">)</span>
+    <span class="o">{</span>
+        <span class="k">if</span> <span class="o">(</span><span class="n">LOG</span><span class="o">.</span><span class="na">isDebugEnabled</span><span class="o">())</span>
+            <span class="n">LOG</span><span class="o">.</span><span class="na">debug</span><span class="o">(</span><span class="s">"queue {}"</span><span class="o">,</span><span class="n">job</span><span class="o">);</span>
+        <span class="k">if</span> <span class="o">(!</span><span class="n">isRunning</span><span class="o">()</span> <span class="o">||</span> <span class="o">!</span><span class="n">_jobs</span><span class="o">.</span><span class="na">offer</span><span class="o">(</span><span class="n">job</span><span class="o">))</span> <span class="c1">//尝试将任务放入队列</span>
+        <span class="o">{</span>
+            <span class="n">LOG</span><span class="o">.</span><span class="na">warn</span><span class="o">(</span><span class="s">"{} rejected {}"</span><span class="o">,</span> <span class="k">this</span><span class="o">,</span> <span class="n">job</span><span class="o">);</span>
+            <span class="k">throw</span> <span class="k">new</span> <span class="nf">RejectedExecutionException</span><span class="o">(</span><span class="n">job</span><span class="o">.</span><span class="na">toString</span><span class="o">());</span>
+        <span class="o">}</span>
+        <span class="k">else</span>
+        <span class="o">{</span>
+            <span class="c1">//如果入队列成果之后发现一个线程都没了，就重新创建一个线程</span>
+            <span class="k">if</span> <span class="o">(</span><span class="n">getThreads</span><span class="o">()</span> <span class="o">==</span> <span class="mi">0</span><span class="o">)</span>
+                <span class="n">startThreads</span><span class="o">(</span><span class="mi">1</span><span class="o">);</span>
+        <span class="o">}</span>
+    <span class="o">}</span>
+</code></pre></div></div>
+
+<h4 id="线程的主要执行逻辑">线程的主要执行逻辑</h4>
+
+<p>线程的主要执行逻辑就是runnable成员变量了，其大体的思路就是：</p>
+
+<ol>
+  <li>线程启动后，开始从任务队列中循环获取任务。</li>
+  <li>如果能成功获取任务，就执行获取到的任务。</li>
+  <li>如果无法获取新的任务，则跳出获取任务的循环，将_threadsIdle加一，标识自身进入了idle状态</li>
+  <li>当自身出于idle状态时，根据指定的条件判断是否需要杀掉空闲的线程</li>
+</ol>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">private</span> <span class="n">Runnable</span> <span class="n">_runnable</span> <span class="o">=</span> <span class="k">new</span> <span class="n">Runnable</span><span class="o">()</span>
+    <span class="o">{</span>
+        <span class="nd">@Override</span>
+        <span class="kd">public</span> <span class="kt">void</span> <span class="nf">run</span><span class="o">()</span>
+        <span class="o">{</span>
+            <span class="kt">boolean</span> <span class="n">shrink</span> <span class="o">=</span> <span class="kc">false</span><span class="o">;</span> <span class="c1">//是否杀掉自身的标识</span>
+            <span class="kt">boolean</span> <span class="n">ignore</span> <span class="o">=</span> <span class="kc">false</span><span class="o">;</span><span class="c1">//自身是否属于意外退出的标识</span>
+            <span class="k">try</span>
+            <span class="o">{</span>
+                <span class="n">Runnable</span> <span class="n">job</span> <span class="o">=</span> <span class="n">_jobs</span><span class="o">.</span><span class="na">poll</span><span class="o">();</span> <span class="err">从队列中获取任务，不会阻塞</span>
+                <span class="k">if</span> <span class="o">(</span><span class="n">job</span> <span class="o">!=</span> <span class="kc">null</span> <span class="o">&amp;&amp;</span> <span class="n">_threadsIdle</span><span class="o">.</span><span class="na">get</span><span class="o">()</span> <span class="o">==</span> <span class="mi">0</span><span class="o">)</span> 
+                <span class="o">{</span>
+                    <span class="c1">//如果获取到了任务，同时没有空闲线程，就创建一个线程。这里是否有必要？</span>
+                    <span class="c1">//虽然_threadsIdle，但是当前线程不就是空闲的吗？看9.4.24.v20191120版本的实现里已经没有这逻辑了</span>
+                    <span class="n">startThreads</span><span class="o">(</span><span class="mi">1</span><span class="o">);</span>
+                <span class="o">}</span>
+                <span class="nl">loop:</span> <span class="k">while</span> <span class="o">(</span><span class="n">isRunning</span><span class="o">())</span>
+                <span class="o">{</span>
+                    <span class="c1">//循环获取任务并执行</span>
+                    <span class="k">while</span> <span class="o">(</span><span class="n">job</span> <span class="o">!=</span> <span class="kc">null</span> <span class="o">&amp;&amp;</span> <span class="n">isRunning</span><span class="o">())</span>
+                    <span class="o">{</span>
+                        <span class="k">if</span> <span class="o">(</span><span class="n">LOG</span><span class="o">.</span><span class="na">isDebugEnabled</span><span class="o">())</span>
+                            <span class="n">LOG</span><span class="o">.</span><span class="na">debug</span><span class="o">(</span><span class="s">"run {}"</span><span class="o">,</span><span class="n">job</span><span class="o">);</span>
+                        <span class="n">runJob</span><span class="o">(</span><span class="n">job</span><span class="o">);</span>
+                        <span class="k">if</span> <span class="o">(</span><span class="n">LOG</span><span class="o">.</span><span class="na">isDebugEnabled</span><span class="o">())</span>
+                            <span class="n">LOG</span><span class="o">.</span><span class="na">debug</span><span class="o">(</span><span class="s">"ran {}"</span><span class="o">,</span><span class="n">job</span><span class="o">);</span>
+                        <span class="k">if</span> <span class="o">(</span><span class="n">Thread</span><span class="o">.</span><span class="na">interrupted</span><span class="o">())</span>
+                        <span class="o">{</span>
+                            <span class="n">ignore</span><span class="o">=</span><span class="kc">true</span><span class="o">;</span>
+                            <span class="k">break</span> <span class="n">loop</span><span class="o">;</span>
+                        <span class="o">}</span>
+                        <span class="n">job</span> <span class="o">=</span> <span class="n">_jobs</span><span class="o">.</span><span class="na">poll</span><span class="o">();</span>
+                    <span class="o">}</span>
+                    <span class="c1">//进入空闲状态</span>
+                    <span class="k">try</span>
+                    <span class="o">{</span>
+                        <span class="n">_threadsIdle</span><span class="o">.</span><span class="na">incrementAndGet</span><span class="o">();</span>
+                        <span class="k">while</span> <span class="o">(</span><span class="n">isRunning</span><span class="o">()</span> <span class="o">&amp;&amp;</span> <span class="n">job</span> <span class="o">==</span> <span class="kc">null</span><span class="o">)</span>
+                        <span class="o">{</span>
+                            <span class="c1">//如果没有指定idleTimeout，就阻塞地尝试获取任务</span>
+                            <span class="k">if</span> <span class="o">(</span><span class="n">_idleTimeout</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="o">)</span>
+                                <span class="n">job</span> <span class="o">=</span> <span class="n">_jobs</span><span class="o">.</span><span class="na">take</span><span class="o">();</span>
+                            <span class="k">else</span>
+                            <span class="o">{</span>
+                                <span class="c1">//判断是否需要结束自己：1. size大于_minThreads 2. 距离上次结束线程超过了_idleTimeout</span>
+                                <span class="kd">final</span> <span class="kt">int</span> <span class="n">size</span> <span class="o">=</span> <span class="n">_threadsStarted</span><span class="o">.</span><span class="na">get</span><span class="o">();</span>
+                                <span class="k">if</span> <span class="o">(</span><span class="n">size</span> <span class="o">&gt;</span> <span class="n">_minThreads</span><span class="o">)</span>
+                                <span class="o">{</span>
+                                    <span class="kt">long</span> <span class="n">last</span> <span class="o">=</span> <span class="n">_lastShrink</span><span class="o">.</span><span class="na">get</span><span class="o">();</span>
+                                    <span class="kt">long</span> <span class="n">now</span> <span class="o">=</span> <span class="n">System</span><span class="o">.</span><span class="na">nanoTime</span><span class="o">();</span>
+                                    <span class="k">if</span> <span class="o">(</span><span class="n">last</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">||</span> <span class="o">(</span><span class="n">now</span> <span class="o">-</span> <span class="n">last</span><span class="o">)</span> <span class="o">&gt;</span> <span class="n">TimeUnit</span><span class="o">.</span><span class="na">MILLISECONDS</span><span class="o">.</span><span class="na">toNanos</span><span class="o">(</span><span class="n">_idleTimeout</span><span class="o">))</span>
+                                    <span class="o">{</span>
+                                        <span class="k">if</span> <span class="o">(</span><span class="n">_lastShrink</span><span class="o">.</span><span class="na">compareAndSet</span><span class="o">(</span><span class="n">last</span><span class="o">,</span> <span class="n">now</span><span class="o">)</span> <span class="o">&amp;&amp;</span> <span class="n">_threadsStarted</span><span class="o">.</span><span class="na">compareAndSet</span><span class="o">(</span><span class="n">size</span><span class="o">,</span> <span class="n">size</span> <span class="o">-</span> <span class="mi">1</span><span class="o">))</span>
+                                        <span class="o">{</span>
+                                            <span class="c1">//如果满足结束的条件，就跳出外层循环，结束执行</span>
+                                            <span class="n">shrink</span><span class="o">=</span><span class="kc">true</span><span class="o">;</span>
+                                            <span class="k">break</span> <span class="n">loop</span><span class="o">;</span>
+                                        <span class="o">}</span>
+                                    <span class="o">}</span>
+                                <span class="o">}</span>
+                                <span class="c1">//如果不满足结束的条件，就尝试阻塞获取任务，同时超时时间为idleTimeout</span>
+                                <span class="n">job</span> <span class="o">=</span> <span class="n">idleJobPoll</span><span class="o">();</span>
+                            <span class="o">}</span>
+                        <span class="o">}</span>
+                    <span class="o">}</span>
+                    <span class="k">finally</span>
+                    <span class="o">{</span>
+                        <span class="k">if</span> <span class="o">(</span><span class="n">_threadsIdle</span><span class="o">.</span><span class="na">decrementAndGet</span><span class="o">()</span> <span class="o">==</span> <span class="mi">0</span><span class="o">)</span>
+                        <span class="o">{</span>
+                            <span class="n">startThreads</span><span class="o">(</span><span class="mi">1</span><span class="o">);</span>
+                        <span class="o">}</span>
+                    <span class="o">}</span>
+                <span class="o">}</span>
+            <span class="o">}</span>
+            <span class="k">catch</span> <span class="o">(</span><span class="n">InterruptedException</span> <span class="n">e</span><span class="o">)</span>
+            <span class="o">{</span>
+                <span class="n">ignore</span><span class="o">=</span><span class="kc">true</span><span class="o">;</span>
+                <span class="n">LOG</span><span class="o">.</span><span class="na">ignore</span><span class="o">(</span><span class="n">e</span><span class="o">);</span>
+            <span class="o">}</span>
+            <span class="k">catch</span> <span class="o">(</span><span class="n">Throwable</span> <span class="n">e</span><span class="o">)</span>
+            <span class="o">{</span>
+                <span class="n">LOG</span><span class="o">.</span><span class="na">warn</span><span class="o">(</span><span class="n">e</span><span class="o">);</span>
+            <span class="o">}</span>
+            <span class="k">finally</span>
+            <span class="o">{</span>
+                <span class="k">if</span> <span class="o">(!</span><span class="n">shrink</span> <span class="o">&amp;&amp;</span> <span class="n">isRunning</span><span class="o">())</span>
+                <span class="o">{</span>
+                    <span class="k">if</span> <span class="o">(!</span><span class="n">ignore</span><span class="o">)</span>
+                        <span class="n">LOG</span><span class="o">.</span><span class="na">warn</span><span class="o">(</span><span class="s">"Unexpected thread death: {} in {}"</span><span class="o">,</span><span class="k">this</span><span class="o">,</span><span class="n">QueuedThreadPool</span><span class="o">.</span><span class="na">this</span><span class="o">);</span>
+                    <span class="k">if</span> <span class="o">(</span><span class="n">_threadsStarted</span><span class="o">.</span><span class="na">decrementAndGet</span><span class="o">()&lt;</span><span class="n">getMaxThreads</span><span class="o">())</span>
+                        <span class="n">startThreads</span><span class="o">(</span><span class="mi">1</span><span class="o">);</span>
+                <span class="o">}</span>
+                <span class="n">_threads</span><span class="o">.</span><span class="na">remove</span><span class="o">(</span><span class="n">Thread</span><span class="o">.</span><span class="na">currentThread</span><span class="o">());</span>
+            <span class="o">}</span>
+        <span class="o">}</span>
+    <span class="o">};</span>
+</code></pre></div></div>
+
+<h2 id="总结">总结</h2>
+
+<p>可以看出QueuedThreadPool比jdk中的ThreadPoolExecutor确实简单的多，而回到最开始的问题，线程池size迟迟不下降的原因就是线程池对idleTimeout的处理方式：当线程出于idle状态时，它就有可能被结束，但只是有可能而不是一定，因为每次结束一个线程都要间隔idleTimeout指定的时间。而我们的项目里指定线程数最大是2000，idleTimeout是5min，就表示每5min才会结束一个线程，所以线程池size下降的速度才会这么慢。</p>
+
+  </div><a class="u-url" href="/2019/12/09/QueuedThreadPool.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
