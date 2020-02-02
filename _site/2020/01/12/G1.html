@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>JVM G1垃圾回收 | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="JVM G1垃圾回收" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="简介" />
+<meta property="og:description" content="简介" />
+<link rel="canonical" href="http://localhost:4000/2020/01/12/G1.html" />
+<meta property="og:url" content="http://localhost:4000/2020/01/12/G1.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-01-12T00:00:00+08:00" />
+<script type="application/ld+json">
+{"description":"简介","@type":"BlogPosting","url":"http://localhost:4000/2020/01/12/G1.html","headline":"JVM G1垃圾回收","dateModified":"2020-01-12T00:00:00+08:00","datePublished":"2020-01-12T00:00:00+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2020/01/12/G1.html"},"@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">JVM G1垃圾回收</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-01-12T00:00:00+08:00" itemprop="datePublished">Jan 12, 2020
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="简介">简介</h2>
+
+<p>G1（Garbage-First）垃圾回收器是在jdk7版本开始被引进的，它的特性在于能够尽可能的满足用户对停顿时间的要求同时还保持较高的吞吐。G1的定位是取代CMS，相比CMS，G1能够更有效的避免碎片化，同时可以让用户指定预期的停顿时间。</p>
+
+<h2 id="g1的机制">G1的机制</h2>
+
+<p>G1同样是分代的垃圾回收，但是不同的是G1把整个堆分成了大小相等的块（称为region），每个region可以被分配为不同的角色（young、eden、old等等），这意味着不同代的内存大小是不固定的，可以灵活地调整。</p>
+
+<p>G1会在jvm启动时确定region size（最小1M，最大32M），通常G1会尽量把堆分为2048个相同大小的region，具体的region size由此计算，也可以在jvm参数里显示指定。不同的region会被分配到不同的逻辑角色，比如eden/old，同一个逻辑角色的不同region也不一定是连续的。</p>
+
+<p>G1的运行机制与CMS类似，G1会进行并发的全局标记来判断对象的存活与否，在标记结束后，G1就能得知哪些region中的垃圾最多，然后就先回收这部分region，这就是G1的名字的由来。G1采用了一个停顿时间预测的模型来尽可能满足用户指定的停顿时间，根据用户指定的停顿时间来选择要回收哪些region。</p>
+
+<p>G1在进行垃圾回收时采用的是复制算法，G1会把各个region中残留的存活对象复制到单独的region中，这样在回收过程中就完成了内存的整理。为了降低复制过程中停顿的时间，整个复制过程是并行的，而CMS并不会进行内存整理，ParallelOld则是会直接整理整个堆，显然会明显增加停顿时间。</p>
+
+<h2 id="g1的各个阶段">G1的各个阶段</h2>
+
+<h3 id="young-gc">young gc</h3>
+
+<p>发生young gc时，存活的对象被复制到survivor区，如果对象的年龄超过阈值，那么会把它晋升到old区。整个young gc过程中是STW的，同时也会重新计算出下一次GC时的eden区和survivor区的大小，计算过程中也会考虑用户指定的目标停顿时间。因为region的设计，要调整各个分区的大小实际上非常容易。</p>
+
+<h3 id="concurrent-marking-cycle">concurrent marking cycle</h3>
+
+<p>并发标记是G1中的一个重要阶段，这个阶段包括若干个步骤，通过并发标记来收集各个region的使用情况等信息，协助达到用户指定的停顿时间。</p>
+
+<h4 id="initial-markstw">initial mark（STW）</h4>
+
+<p>这一步是和young gc一起顺带着执行的，首先标记出gc roots直接可达的对象，</p>
+
+<h4 id="root-region-scanning">root region scanning</h4>
+
+<p>young gc过后，survivor中的对象都被标记为root region，这时扫描由survivor区直接可达的old区并标记。这一阶段必须在新一轮的young gc前执行完毕。如果这时又需要young gc，那么会等待扫描完成才会进行。</p>
+
+<h4 id="concurrent-marking">concurrent marking</h4>
+
+<p>扫描整个堆，标记存活的对象，整个阶段是与应用程序并行的，可能被young gc打断。这个阶段下会不断从扫描栈取出引用，递归地扫描整个堆里的对象图。每扫描到一个对象就会对其标记，并将其字段压入扫描栈。重复扫描过程直到扫描栈清空。过程中还会扫描SATB write barrier所记录下的引用。</p>
+
+<h4 id="remarkstw">remark（STW）</h4>
+
+<p>在完成并发标记后，每个Java线程还会有一些剩下的SATB write barrier记录的引用尚未处理。这个阶段就负责把剩下的引用处理完。同时这个阶段也进行弱引用处理（reference processing）。注意这个暂停与CMS的remark有一个本质上的区别，那就是这个暂停只需要扫描SATB buffer，而CMS的remark需要重新扫描mod-union table里的dirty card外加整个根集合，而此时整个young gen（不管对象死活）都会被当作根集合的一部分，因而CMS remark有可能会非常慢。</p>
+
+<h4 id="cleanupstw">cleanup（STW）</h4>
+
+<p>这阶段会清理各个region，同时更新Rset，如果有空的region就把它释放掉。</p>
+
+<h4 id="copyingstw">copying（STW）</h4>
+
+<p>把存活的对象拷贝到新的region。</p>
+
+<h3 id="g1的老年代回收总结">G1的老年代回收总结</h3>
+
+<ul>
+  <li>concurrent mark阶段
+    <ul>
+      <li>存活对象的信息是在运行时并发地计算的</li>
+      <li>在复制阶段，G1会根据每个region内存活对象的信息确定哪些region优先被回收</li>
+      <li>没有类似CMS中的sweep过程（因为是直接evacuate整个region）</li>
+    </ul>
+  </li>
+  <li>remark阶段
+    <ul>
+      <li>SATB算法，（据说）会比CMS更快</li>
+      <li>空的region会被直接回收</li>
+    </ul>
+  </li>
+  <li>cleanup/copying阶段
+    <ul>
+      <li>young和old区同时进行回收</li>
+      <li>会根据情况选择特定的old区region进行回收</li>
+    </ul>
+  </li>
+</ul>
+
+<h3 id="混合gc">混合GC</h3>
+
+<p>在经历了一个完整的标记周期过后，G1会在下一次young gc的时刻转换成混合gc，混合gc下，G1可能会把一部分old区的region加入Cset中，利用young gc的算法清理一部分old region。当G1回收了足够多的old region，又会重新回到young gc，直到下一次并发标记周期完成。</p>
+
+<h2 id="总结">总结</h2>
+
+<p>G1的目标是要代替CMS，它把整个堆空间划分成了不同的region来进行管理，使得分配和回收更加灵活。G1的主要活动包括young gc、mixed gc以及并发标记，它会根据用户指定的目标停顿时间来决定要对哪些内存区域进行回收。</p>
+
+<h3 id="remembered-sets和collection-sets">Remembered Sets和Collection Sets</h3>
+
+<p>RSet用于记录指向某个region的引用，每个region对应一个RSet，这个数据结构里记录了哪些其他region包含了指向这个region的对象的引用。CSet记录了GC过程中会被回收的region，CSet中存活的对象在GC过程中都会被复制到新的空的region。Rset和Cset都是为了帮助GC而产生的额外的数据结构。</p>
+
+<p>G1的heap与HotSpot VM的其它GC一样有一个覆盖整个heap的card table。逻辑上说，G1的RSet是每个region有一份。这个RSet记录的是从别的region指向该region的card。所以这是一种“points-into”的Remembered Set。用card table实现的Remembered Set通常是points-out的，也就是说card table要记录的是从它覆盖的范围出发指向别的范围的指针。以分代式GC的card table为例，要记录old -&gt; young的跨代指针，被标记的card是old gen范围内的。</p>
+
+<p>G1则是在points-out的card table之上再加了一层结构来构成points-into RSet：每个region会记录下到底哪些别的region有指向自己的指针，而这些指针分别在哪些card的范围内。这个RSet其实是一个hash table，key是别的region的起始地址，value是一个集合，里面的元素是card table的index。</p>
+
+<h3 id="satb算法">SATB算法</h3>
+
+<p>G1在concurrent mark阶段使用了SATB算法来避免对象的漏标记，而SATB是snapshot at the beginning的缩写。简单来说，SATB的思路就是认定在GC开始时存活的对象就是存活的，此时整个堆内的所有对象形成一个快照（snapshot）；同时认定在GC过程中新产生的对象也都是存活的，而剩下的不可达的对象则都是垃圾了。</p>
+
+<p>而G1是如何确定哪些对象是在GC开始后新产生的呢，这依赖两个指针：prevTAMS和nextTAMS。TAMS是top at mark start的缩写，这里就要再介绍一下region的几个指针了：
+<img src="/img/g1_region.webp" alt="img" /></p>
+
+<ul>
+  <li>[bottom, top)部分为该region中已经使用的部分</li>
+  <li>[top, end)部分为该region中未使用的部分</li>
+</ul>
+
+<p>在每次concurrent mark开始时，将当前top赋值给nextTAMS，那么在concurrent mark过程中，该region上新分配的对象都落在nextTAMS和top之间，G1保证这部分对象都不会被漏标，默认都是存活的。</p>
+
+<p>当concurrent mark结束时，将当前的nextTAMS赋值给prevTAMS，同时根据mark的结果，将[bottom, prevTAMS]之间的对象的存活信息保存为一个bitmap，后续就可以通过这个bitmap确定对应的对象是否存活了。</p>
+
+<p>由于对象的存活标记是和应用程序并发执行的，应用程序完全有可能在标记过程中修改对象的引用，所以为了避免漏标记，G1使用了write barrier。write barrier是指在”对引用类型字段赋值”这个动作前后的一个拦截，可以在赋值的前后进行额外的工作。在赋值前的部分的write barrier叫做pre-write barrier，在赋值后的则叫做post-write barrier，G1则使用了pre-write barrier。为了避免漏标，G1会在每次引用赋值前把这个引用指向的旧的值也进行递归地标记，并默认其为存活，这样就不会漏掉任何一个snapshot中的对象了。当这个旧的值实际上不再是存活对象时，它实际上也就成为了浮动垃圾，只能留到下一轮垃圾回收了。</p>
+
+<p>可以看出，上面提到的barrier中的工作实际上都是在应用程序的线程中完成的。为了尽量减少write barrier对性能的影响，G1将一部分原本要在barrier里做的事情挪到别的线程上并发执行。实现这种分离的方式就是通过logging形式的write barrier：应用程序只在barrier里把要做的事情的信息记（log）到一个队列里，然后另外的线程从队列里取出信息批量完成剩余的动作。</p>
+
+<p>以SATB write barrier为例，每个Java线程有一个独立的、定长的SATBMarkQueue，应用程序线程在barrier里只把old_value压入该队列中。一个队列满了之后，它就会被加到全局的SATB队列集合SATBMarkQueueSet里等待处理，然后给对应的Java线程换一个新的、干净的队列继续执行下去。</p>
+
+<p>concurrent mark会定期检查全局SATB队列集合的大小。当全局集合中队列数量超过一定阈值后，concurrent marker就会处理集合里的所有队列：把队列里记录的每个oop都标记上，并将其引用字段压到标记栈（marking stack）上等后面做进一步标记。</p>
+
+  </div><a class="u-url" href="/2020/01/12/G1.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

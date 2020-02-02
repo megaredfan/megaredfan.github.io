@@ -1,4 +1,181 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2019-12-29T19:55:53+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">TCP BBR简介</title><link href="http://localhost:4000/2019/12/29/TCP-BBR.html" rel="alternate" type="text/html" title="TCP BBR简介" /><published>2019-12-29T00:00:00+08:00</published><updated>2019-12-29T00:00:00+08:00</updated><id>http://localhost:4000/2019/12/29/TCP%20BBR</id><content type="html" xml:base="http://localhost:4000/2019/12/29/TCP-BBR.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-02-02T12:05:23+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">JVM G1垃圾回收</title><link href="http://localhost:4000/2020/01/12/G1.html" rel="alternate" type="text/html" title="JVM G1垃圾回收" /><published>2020-01-12T00:00:00+08:00</published><updated>2020-01-12T00:00:00+08:00</updated><id>http://localhost:4000/2020/01/12/G1</id><content type="html" xml:base="http://localhost:4000/2020/01/12/G1.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
+
+&lt;p&gt;G1（Garbage-First）垃圾回收器是在jdk7版本开始被引进的，它的特性在于能够尽可能的满足用户对停顿时间的要求同时还保持较高的吞吐。G1的定位是取代CMS，相比CMS，G1能够更有效的避免碎片化，同时可以让用户指定预期的停顿时间。&lt;/p&gt;
+
+&lt;h2 id=&quot;g1的机制&quot;&gt;G1的机制&lt;/h2&gt;
+
+&lt;p&gt;G1同样是分代的垃圾回收，但是不同的是G1把整个堆分成了大小相等的块（称为region），每个region可以被分配为不同的角色（young、eden、old等等），这意味着不同代的内存大小是不固定的，可以灵活地调整。&lt;/p&gt;
+
+&lt;p&gt;G1会在jvm启动时确定region size（最小1M，最大32M），通常G1会尽量把堆分为2048个相同大小的region，具体的region size由此计算，也可以在jvm参数里显示指定。不同的region会被分配到不同的逻辑角色，比如eden/old，同一个逻辑角色的不同region也不一定是连续的。&lt;/p&gt;
+
+&lt;p&gt;G1的运行机制与CMS类似，G1会进行并发的全局标记来判断对象的存活与否，在标记结束后，G1就能得知哪些region中的垃圾最多，然后就先回收这部分region，这就是G1的名字的由来。G1采用了一个停顿时间预测的模型来尽可能满足用户指定的停顿时间，根据用户指定的停顿时间来选择要回收哪些region。&lt;/p&gt;
+
+&lt;p&gt;G1在进行垃圾回收时采用的是复制算法，G1会把各个region中残留的存活对象复制到单独的region中，这样在回收过程中就完成了内存的整理。为了降低复制过程中停顿的时间，整个复制过程是并行的，而CMS并不会进行内存整理，ParallelOld则是会直接整理整个堆，显然会明显增加停顿时间。&lt;/p&gt;
+
+&lt;h2 id=&quot;g1的各个阶段&quot;&gt;G1的各个阶段&lt;/h2&gt;
+
+&lt;h3 id=&quot;young-gc&quot;&gt;young gc&lt;/h3&gt;
+
+&lt;p&gt;发生young gc时，存活的对象被复制到survivor区，如果对象的年龄超过阈值，那么会把它晋升到old区。整个young gc过程中是STW的，同时也会重新计算出下一次GC时的eden区和survivor区的大小，计算过程中也会考虑用户指定的目标停顿时间。因为region的设计，要调整各个分区的大小实际上非常容易。&lt;/p&gt;
+
+&lt;h3 id=&quot;concurrent-marking-cycle&quot;&gt;concurrent marking cycle&lt;/h3&gt;
+
+&lt;p&gt;并发标记是G1中的一个重要阶段，这个阶段包括若干个步骤，通过并发标记来收集各个region的使用情况等信息，协助达到用户指定的停顿时间。&lt;/p&gt;
+
+&lt;h4 id=&quot;initial-markstw&quot;&gt;initial mark（STW）&lt;/h4&gt;
+
+&lt;p&gt;这一步是和young gc一起顺带着执行的，首先标记出gc roots直接可达的对象，&lt;/p&gt;
+
+&lt;h4 id=&quot;root-region-scanning&quot;&gt;root region scanning&lt;/h4&gt;
+
+&lt;p&gt;young gc过后，survivor中的对象都被标记为root region，这时扫描由survivor区直接可达的old区并标记。这一阶段必须在新一轮的young gc前执行完毕。如果这时又需要young gc，那么会等待扫描完成才会进行。&lt;/p&gt;
+
+&lt;h4 id=&quot;concurrent-marking&quot;&gt;concurrent marking&lt;/h4&gt;
+
+&lt;p&gt;扫描整个堆，标记存活的对象，整个阶段是与应用程序并行的，可能被young gc打断。这个阶段下会不断从扫描栈取出引用，递归地扫描整个堆里的对象图。每扫描到一个对象就会对其标记，并将其字段压入扫描栈。重复扫描过程直到扫描栈清空。过程中还会扫描SATB write barrier所记录下的引用。&lt;/p&gt;
+
+&lt;h4 id=&quot;remarkstw&quot;&gt;remark（STW）&lt;/h4&gt;
+
+&lt;p&gt;在完成并发标记后，每个Java线程还会有一些剩下的SATB write barrier记录的引用尚未处理。这个阶段就负责把剩下的引用处理完。同时这个阶段也进行弱引用处理（reference processing）。注意这个暂停与CMS的remark有一个本质上的区别，那就是这个暂停只需要扫描SATB buffer，而CMS的remark需要重新扫描mod-union table里的dirty card外加整个根集合，而此时整个young gen（不管对象死活）都会被当作根集合的一部分，因而CMS remark有可能会非常慢。&lt;/p&gt;
+
+&lt;h4 id=&quot;cleanupstw&quot;&gt;cleanup（STW）&lt;/h4&gt;
+
+&lt;p&gt;这阶段会清理各个region，同时更新Rset，如果有空的region就把它释放掉。&lt;/p&gt;
+
+&lt;h4 id=&quot;copyingstw&quot;&gt;copying（STW）&lt;/h4&gt;
+
+&lt;p&gt;把存活的对象拷贝到新的region。&lt;/p&gt;
+
+&lt;h3 id=&quot;g1的老年代回收总结&quot;&gt;G1的老年代回收总结&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;concurrent mark阶段
+    &lt;ul&gt;
+      &lt;li&gt;存活对象的信息是在运行时并发地计算的&lt;/li&gt;
+      &lt;li&gt;在复制阶段，G1会根据每个region内存活对象的信息确定哪些region优先被回收&lt;/li&gt;
+      &lt;li&gt;没有类似CMS中的sweep过程（因为是直接evacuate整个region）&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;remark阶段
+    &lt;ul&gt;
+      &lt;li&gt;SATB算法，（据说）会比CMS更快&lt;/li&gt;
+      &lt;li&gt;空的region会被直接回收&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;cleanup/copying阶段
+    &lt;ul&gt;
+      &lt;li&gt;young和old区同时进行回收&lt;/li&gt;
+      &lt;li&gt;会根据情况选择特定的old区region进行回收&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;混合gc&quot;&gt;混合GC&lt;/h3&gt;
+
+&lt;p&gt;在经历了一个完整的标记周期过后，G1会在下一次young gc的时刻转换成混合gc，混合gc下，G1可能会把一部分old区的region加入Cset中，利用young gc的算法清理一部分old region。当G1回收了足够多的old region，又会重新回到young gc，直到下一次并发标记周期完成。&lt;/p&gt;
+
+&lt;h2 id=&quot;总结&quot;&gt;总结&lt;/h2&gt;
+
+&lt;p&gt;G1的目标是要代替CMS，它把整个堆空间划分成了不同的region来进行管理，使得分配和回收更加灵活。G1的主要活动包括young gc、mixed gc以及并发标记，它会根据用户指定的目标停顿时间来决定要对哪些内存区域进行回收。&lt;/p&gt;
+
+&lt;h3 id=&quot;remembered-sets和collection-sets&quot;&gt;Remembered Sets和Collection Sets&lt;/h3&gt;
+
+&lt;p&gt;RSet用于记录指向某个region的引用，每个region对应一个RSet，这个数据结构里记录了哪些其他region包含了指向这个region的对象的引用。CSet记录了GC过程中会被回收的region，CSet中存活的对象在GC过程中都会被复制到新的空的region。Rset和Cset都是为了帮助GC而产生的额外的数据结构。&lt;/p&gt;
+
+&lt;p&gt;G1的heap与HotSpot VM的其它GC一样有一个覆盖整个heap的card table。逻辑上说，G1的RSet是每个region有一份。这个RSet记录的是从别的region指向该region的card。所以这是一种“points-into”的Remembered Set。用card table实现的Remembered Set通常是points-out的，也就是说card table要记录的是从它覆盖的范围出发指向别的范围的指针。以分代式GC的card table为例，要记录old -&amp;gt; young的跨代指针，被标记的card是old gen范围内的。&lt;/p&gt;
+
+&lt;p&gt;G1则是在points-out的card table之上再加了一层结构来构成points-into RSet：每个region会记录下到底哪些别的region有指向自己的指针，而这些指针分别在哪些card的范围内。这个RSet其实是一个hash table，key是别的region的起始地址，value是一个集合，里面的元素是card table的index。&lt;/p&gt;
+
+&lt;h3 id=&quot;satb算法&quot;&gt;SATB算法&lt;/h3&gt;
+
+&lt;p&gt;G1在concurrent mark阶段使用了SATB算法来避免对象的漏标记，而SATB是snapshot at the beginning的缩写。简单来说，SATB的思路就是认定在GC开始时存活的对象就是存活的，此时整个堆内的所有对象形成一个快照（snapshot）；同时认定在GC过程中新产生的对象也都是存活的，而剩下的不可达的对象则都是垃圾了。&lt;/p&gt;
+
+&lt;p&gt;而G1是如何确定哪些对象是在GC开始后新产生的呢，这依赖两个指针：prevTAMS和nextTAMS。TAMS是top at mark start的缩写，这里就要再介绍一下region的几个指针了：
+&lt;img src=&quot;/img/g1_region.webp&quot; alt=&quot;img&quot; /&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;[bottom, top)部分为该region中已经使用的部分&lt;/li&gt;
+  &lt;li&gt;[top, end)部分为该region中未使用的部分&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;在每次concurrent mark开始时，将当前top赋值给nextTAMS，那么在concurrent mark过程中，该region上新分配的对象都落在nextTAMS和top之间，G1保证这部分对象都不会被漏标，默认都是存活的。&lt;/p&gt;
+
+&lt;p&gt;当concurrent mark结束时，将当前的nextTAMS赋值给prevTAMS，同时根据mark的结果，将[bottom, prevTAMS]之间的对象的存活信息保存为一个bitmap，后续就可以通过这个bitmap确定对应的对象是否存活了。&lt;/p&gt;
+
+&lt;p&gt;由于对象的存活标记是和应用程序并发执行的，应用程序完全有可能在标记过程中修改对象的引用，所以为了避免漏标记，G1使用了write barrier。write barrier是指在”对引用类型字段赋值”这个动作前后的一个拦截，可以在赋值的前后进行额外的工作。在赋值前的部分的write barrier叫做pre-write barrier，在赋值后的则叫做post-write barrier，G1则使用了pre-write barrier。为了避免漏标，G1会在每次引用赋值前把这个引用指向的旧的值也进行递归地标记，并默认其为存活，这样就不会漏掉任何一个snapshot中的对象了。当这个旧的值实际上不再是存活对象时，它实际上也就成为了浮动垃圾，只能留到下一轮垃圾回收了。&lt;/p&gt;
+
+&lt;p&gt;可以看出，上面提到的barrier中的工作实际上都是在应用程序的线程中完成的。为了尽量减少write barrier对性能的影响，G1将一部分原本要在barrier里做的事情挪到别的线程上并发执行。实现这种分离的方式就是通过logging形式的write barrier：应用程序只在barrier里把要做的事情的信息记（log）到一个队列里，然后另外的线程从队列里取出信息批量完成剩余的动作。&lt;/p&gt;
+
+&lt;p&gt;以SATB write barrier为例，每个Java线程有一个独立的、定长的SATBMarkQueue，应用程序线程在barrier里只把old_value压入该队列中。一个队列满了之后，它就会被加到全局的SATB队列集合SATBMarkQueueSet里等待处理，然后给对应的Java线程换一个新的、干净的队列继续执行下去。&lt;/p&gt;
+
+&lt;p&gt;concurrent mark会定期检查全局SATB队列集合的大小。当全局集合中队列数量超过一定阈值后，concurrent marker就会处理集合里的所有队列：把队列里记录的每个oop都标记上，并将其引用字段压到标记栈（marking stack）上等后面做进一步标记。&lt;/p&gt;</content><author><name></name></author><summary type="html">简介</summary></entry><entry><title type="html">TCP BBR v2.0</title><link href="http://localhost:4000/2020/01/05/TCP-BBRv2.html" rel="alternate" type="text/html" title="TCP BBR v2.0" /><published>2020-01-05T00:00:00+08:00</published><updated>2020-01-05T00:00:00+08:00</updated><id>http://localhost:4000/2020/01/05/TCP%20BBRv2</id><content type="html" xml:base="http://localhost:4000/2020/01/05/TCP-BBRv2.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+
+&lt;p&gt;上次简单介绍了BBR的特点和基本的实现思路，但是BBR并不就是完美的吊打一切其他算法的存在。在2018年7月的时候google发布了BBR的相关改进的计划，目前已经有BBR v2 alpha版本的试用文档，正式版尚未发布。所以借助BBR v2的更新内容简单总结一下BBR的一些不足或者缺点。&lt;/p&gt;
+
+&lt;h2 id=&quot;bbr-v2的计划更新内容&quot;&gt;BBR v2的计划更新内容&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;改进与其他算法共存时的公平性：调整BBR探测带宽时的时间来和CUBIC/Reno共存&lt;/li&gt;
+  &lt;li&gt;降低排队压力（丢包和排队延时），在计算以下指标时将丢包和ECN考虑在内
+    &lt;ul&gt;
+      &lt;li&gt;in-flight 数据的安全范围&lt;/li&gt;
+      &lt;li&gt;退出STARTUP的时机&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;加快min_rtt的收敛：增加PROBE_RTT的频率&lt;/li&gt;
+  &lt;li&gt;降低PROBE_RTT时的极端性&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;计算in-flight数据大小的新模型&quot;&gt;计算in-flight数据大小的新模型&lt;/h3&gt;
+
+&lt;p&gt;v2版本使用新的模型来计算in-flight数据的大小范围，其中包含三个参数：inflight_lo、inflight_high、inflight_prob。&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;inflight_lo：基于丢包和ECN信号计算出来的in-flight数据包最小值&lt;/li&gt;
+  &lt;li&gt;inflight_hi：出现丢包和ECN信号前的in-flight数据包最大值&lt;/li&gt;
+  &lt;li&gt;inflight_prob：探测带宽时超过inflight_hi的增量&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;startup阶段&quot;&gt;STARTUP阶段&lt;/h3&gt;
+
+&lt;p&gt;BBR v1中，STARTUP会持续增加发送速度，直到探测到的最大带宽趋于平稳然后退出。但是这个阶段并不会把丢包考虑在内，所以在STARTUP阶段可能会出现丢包严重的现象。v2版本中在STARTUP阶段的退出条件中增加了一项：当发现丢包或者ECN时，也会提前退出STARTUP阶段，同时更新inflight_hi变量。STARTUP阶段模式的另一个修改是将拥塞窗口增益由2.89改为2，这个改动反而会加重因为ACK聚合而导致失速问题，而BBR对此的解决方案则是BBR Extra-CWND，这里还没有太弄明白，后续再详细了解下。&lt;/p&gt;
+
+&lt;h3 id=&quot;drain阶段&quot;&gt;DRAIN阶段&lt;/h3&gt;
+
+&lt;p&gt;DRAIN阶段会降低发送速度，尝试清空中间设备的缓存，直到inflight数据少于预估的带宽（”drain to target”）。这个阶段并没有改动。&lt;/p&gt;
+
+&lt;h3 id=&quot;probe_bw阶段&quot;&gt;PROBE_BW阶段&lt;/h3&gt;
+
+&lt;p&gt;v2版本中PROBE_BW分为三个阶段：cruise（平稳）、up（探测更多带宽）和down（收敛到可用带宽）。同时为了与其他基于丢包的算法共存，PROBE_BW周期的时长不再是8个min_rtt，而是min(T_bbr, T_reno)，T_bbr是时间范围为2-5s，T_reno是min（BDP, 50）* RTT。BDP过期时间不在是过去的十轮，而是更长的2个PROBE_BW周期时长。&lt;/p&gt;
+
+&lt;h4 id=&quot;cruise&quot;&gt;cruise&lt;/h4&gt;
+
+&lt;p&gt;v1版本中平稳阶段会使inflight保持在一个恒定的值，而v2版本则会预留一部分空间（让给其他连接），使inflight在inflight_lo和inflight_hi之间，并且会根据丢包和ECN事件减小inflight_lo的值。&lt;/p&gt;
+
+&lt;h4 id=&quot;up&quot;&gt;up&lt;/h4&gt;
+
+&lt;p&gt;v1版本中在探测更多带宽时简单地增加1/4的发送速度，而v2版本中采用了指数增长的方式，先慢后快地探测可用带宽，直到出现丢包或者新的可用带宽大于预估带宽的1.25倍，同时会在出现丢包时更新inflight_hi。&lt;/p&gt;
+
+&lt;h4 id=&quot;down&quot;&gt;down&lt;/h4&gt;
+
+&lt;p&gt;v1版本中每次收敛只会降低1/4，而v2版本中则直接采用了”drain to target”的策略，会直接收敛到预估带宽。后续这个阶段可能会直接代替DRAIN阶段。&lt;/p&gt;
+
+&lt;h3 id=&quot;probe_rtt阶段&quot;&gt;PROBE_RTT阶段&lt;/h3&gt;
+
+&lt;p&gt;v1版本中，在进入PROBE_RTT阶段时，为了探测min_RTT会直接将窗口降到4个，同时为了尽量减小PROBE_RTT带来的吞吐降低的影响，PROBE_RTT的频率比较低（10s一次）。这就使得BBR在收敛时的速度很慢（通常需要20~30s）。v2版本中对此作了两点改进：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;窗口降低的更温和，不再是4而是0.75*BDP&lt;/li&gt;
+  &lt;li&gt;探测得更频繁，不再是10s一次而是2.5s一次&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;通过这样的调整，使得PROBE_RTT不再那么激进，也可以有效提高收敛的速度。&lt;/p&gt;
+
+&lt;h2 id=&quot;总结&quot;&gt;总结&lt;/h2&gt;
+
+&lt;p&gt;BBR v2版本总的来说更加保守了，把丢包和ECN加入了考虑范围，同时还考虑到与其他算法共存时的情况。&lt;/p&gt;
+
+&lt;p&gt;附：ECN即显式拥塞通知（Explicit Congestion Notification），它可以通过显式的通知来告知网络两端发生了拥塞。具体可以参考维基百科。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">TCP BBR简介</title><link href="http://localhost:4000/2019/12/29/TCP-BBR.html" rel="alternate" type="text/html" title="TCP BBR简介" /><published>2019-12-29T00:00:00+08:00</published><updated>2019-12-29T00:00:00+08:00</updated><id>http://localhost:4000/2019/12/29/TCP%20BBR</id><content type="html" xml:base="http://localhost:4000/2019/12/29/TCP-BBR.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
 
 &lt;p&gt;TCP BBR是由来自Google的 Neal Cardwell 和 Yuchung Cheng 发表的新的TCP拥塞控制算法，目前已经在Google内部大范围使用并且随着linux 4.9版本正式发布。不过我个人第一次接触到BBR却是在搭建上网工具的时候，个人体感开启了BBR之后的访问速度明显提高，在这里主要总结一下从网上了解到的相关知识。&lt;/p&gt;
 
@@ -40,7 +217,7 @@
 
 &lt;h2 id=&quot;bbr算法的各个阶段&quot;&gt;BBR算法的各个阶段&lt;/h2&gt;
 
-&lt;p&gt;在连接建立的时候，BBR也采用类似慢启动的方式逐步增加发送速率，然后根据收到的ack计算BDP，当发现BDP不再增长时，就进入拥塞避免阶段（这个过程完全不管有没有丢包）。在慢启动的过程中，由于几乎不会填充中间设备的缓冲区，这过程中的延迟的最小值就是最初估计的最小延迟；而慢启动结束时的最大带宽就是最初的估计的最大延迟。&lt;/p&gt;
+&lt;p&gt;在连接建立的时候，BBR也采用类似慢启动的方式逐步增加发送速率，然后根据收到的ack计算BDP，当发现BDP不再增长时，就进入拥塞避免阶段（这个过程完全不管有没有丢包）。在慢启动的过程中，由于几乎不会填充中间设备的缓冲区，这过程中的延迟的最小值就是最初估计的最小延迟；而慢启动结束时的最大带宽就是最初的估计的最大贷款。&lt;/p&gt;
 
 &lt;p&gt;慢启动结束之后，为了把慢启动过程中可能填充到缓冲区中的数据排空，BBR会进入排空阶段，这期间会降低发送速率，如果缓冲区中有数据，降低发送速率就会使延时下降（缓冲区逐渐被清空），直到延时不再下降。&lt;/p&gt;
 
@@ -898,219 +1075,4 @@ Overhead  Shared Object       Symbol
 
 &lt;h2 id=&quot;其他&quot;&gt;其他&lt;/h2&gt;
 
-&lt;p&gt;通过例子我们可以发现，perf的分析结果中的Symbol一列显示的都是c语言函数的名字。对于java来说，jit编译产生的函数就会直接显示在symbol里，而不是java的函数名，这时要定位问题就不是那么容易了，我们需要通过额外的手段将symbol和java程序的符号表对应起来，具体后续再讨论了。&lt;/p&gt;</content><author><name></name></author><summary type="html">简介</summary></entry><entry><title type="html">Lettuce学习笔记</title><link href="http://localhost:4000/2019/09/08/Lettuce.html" rel="alternate" type="text/html" title="Lettuce学习笔记" /><published>2019-09-08T00:00:00+08:00</published><updated>2019-09-08T00:00:00+08:00</updated><id>http://localhost:4000/2019/09/08/Lettuce</id><content type="html" xml:base="http://localhost:4000/2019/09/08/Lettuce.html">&lt;h2 id=&quot;lettuce简介&quot;&gt;Lettuce简介&lt;/h2&gt;
-
-&lt;p&gt;Lettuce是一个开源的redis client，由javg编写。其主要的宣传特性是线程安全、支持同步异步以及reactive api、支持单实例redis、redis sentinel、redis cluster等。&lt;/p&gt;
-
-&lt;p&gt;Lettuce的实现主要是基于netty实现了网络层逻辑，通过专门的设计支持在同一个连接上并发的处理多个请求响应。&lt;/p&gt;
-
-&lt;h2 id=&quot;使用实例&quot;&gt;使用实例&lt;/h2&gt;
-
-&lt;p&gt;1、 添加依赖&lt;/p&gt;
-
-&lt;div class=&quot;language-xml highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nt&quot;&gt;&amp;lt;dependency&amp;gt;&lt;/span&gt;
-    &lt;span class=&quot;nt&quot;&gt;&amp;lt;groupId&amp;gt;&lt;/span&gt;io.lettuce&lt;span class=&quot;nt&quot;&gt;&amp;lt;/groupId&amp;gt;&lt;/span&gt;
-    &lt;span class=&quot;nt&quot;&gt;&amp;lt;artifactId&amp;gt;&lt;/span&gt;lettuce-core&lt;span class=&quot;nt&quot;&gt;&amp;lt;/artifactId&amp;gt;&lt;/span&gt;
-    &lt;span class=&quot;nt&quot;&gt;&amp;lt;version&amp;gt;&lt;/span&gt;${lettuce.version}&lt;span class=&quot;nt&quot;&gt;&amp;lt;/version&amp;gt;&lt;/span&gt;
-&lt;span class=&quot;nt&quot;&gt;&amp;lt;/dependency&amp;gt;&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;2、创建RedisClient并执行命令&lt;/p&gt;
-
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;//创建客户端，也可以与Spring集成&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;RedisClient&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;redisClient&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;RedisClient&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;create&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;redis://password@localhost:6379/0&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;StatefulRedisConnection&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;String&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;String&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;connection&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;redisClient&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;connect&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-&lt;span class=&quot;c1&quot;&gt;//获取同步API&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;RedisCommands&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;String&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;String&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;syncCommands&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;connection&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;sync&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;syncCommands&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;set&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;key&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&quot;Hello, Redis!&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;);&lt;/span&gt;
-&lt;span class=&quot;c1&quot;&gt;//获取异步API&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;RedisAsyncCommands&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;String&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;String&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;asyncCommands&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;connection&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;async&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;asyncCommands&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;get&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;key&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;).&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;thenAccept&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;result&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;the result is &quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;result&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;));&lt;/span&gt;  
-&lt;span class=&quot;c1&quot;&gt;//获取reactive API&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;RedisReactiveCommands&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;String&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;String&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;reactiveCommands&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;connection&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;reactive&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;reactiveCommands&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;get&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;key&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;).&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;subscribe&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;result&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;System&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;out&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;println&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;the result is &quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;result&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;));&lt;/span&gt;
-&lt;span class=&quot;c1&quot;&gt;//关闭连接和客户端&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;connection&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;close&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-&lt;span class=&quot;n&quot;&gt;redisClient&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;shutdown&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;();&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;h2 id=&quot;statefulredisconnection&quot;&gt;StatefulRedisConnection&lt;/h2&gt;
-
-&lt;p&gt;StatefulRedisConnection是一个接口，它代表客户端与服务端的一个连接，同步、异步和reactive三种api底层都是通过StatefulRedisConnection与服务端通信。&lt;/p&gt;
-
-&lt;h3 id=&quot;连接的创建&quot;&gt;连接的创建&lt;/h3&gt;
-
-&lt;p&gt;连接的创建由RedisClient的connect方法执行，connect方法需要传入编解码所需的codec与服务端的URI。codec可以不需要指定，默认是StringCodec.UTF8。connect方法最终会调用到connectStandaloneAsync方法，在这里执行真正的连接创建逻辑，主要包含三个部分：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;创建DefaultEndpoint对象，DefaultEndpoint包含了连接自身的管理以及向对端发送命令的逻辑。&lt;/li&gt;
-  &lt;li&gt;创建StatefulRedisConnectionImpl对象，它是StatefulRedisConnection的实际实现。&lt;/li&gt;
-  &lt;li&gt;调用connectStatefulAsync方法进行实际的连接。&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;connectStatefulAsync方法中首先会创建ConnectionBuilder对象，其中包含了连接的各个选项，比如连接地址、netty相关的配置等等。接着会通过解析redis uri获得一个socketAddress，然后触发initializeChannelAsync0方法中的netty的connect操作，于是连接就建立了。&lt;/p&gt;
-
-&lt;h3 id=&quot;连接状态的管理&quot;&gt;连接状态的管理&lt;/h3&gt;
-
-&lt;p&gt;lettuce是基于netty实现的，所以它在netty的channel上添加了几个自定义的handler，其中具体包括：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;ChannelGroupHandler，用于维护channelGroup的状态，主要逻辑就是在连接建立或者断开时将对应的连接添加到channelGroup或者从channelGroup中移除&lt;/li&gt;
-  &lt;li&gt;CommandEncoder，用于redis command的编码&lt;/li&gt;
-  &lt;li&gt;CommandHandler，lettuce的核心handler，主要负责redis command发送以及服务端响应的解析&lt;/li&gt;
-  &lt;li&gt;ConnectionWatchdog，用于监控连接状态和连接的自动重连&lt;/li&gt;
-  &lt;li&gt;ConnectionEventTrigger，用于转发channel的状态事件，对外暴露出listener，用户可以借此监听连接变化&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;连接状态的管理主要有ChannelGroupHandler与ConnectionWatchDog实现，其中ChannelGroupHandler的逻辑比较简单，ConnectionWatchDog的实现主要是监听channelInactive事件，然后提交一个重连任务到线程池。&lt;/p&gt;
-
-&lt;p&gt;此外，DefaultEndpoint也会监听连接状态的变化，实际上整个通信过程中与服务端的连接由DefaultEndpoint对象持有，当发生连接变化（比如断开或者重连）时，DefaultEndpoint会根据连接的状态执行不同的逻辑，比如：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;当连接建立时，将持有的连接对象替换成新建立的连接&lt;/li&gt;
-  &lt;li&gt;当发送数据时，先判断连接的状态，如果连接正常则直接通过连接发送；否则将数据添加到自身的缓冲里&lt;/li&gt;
-  &lt;li&gt;当连接重连时，将缓冲的数据发送出去，并将持有的连接对象替换成新建立的连接&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h2 id=&quot;commandhandler&quot;&gt;CommandHandler&lt;/h2&gt;
-
-&lt;p&gt;CommandHandler是lettuce的核心部分，它自身也是一个channel handler，拦截了redis command的write和服务端响应的read等逻辑。&lt;/p&gt;
-
-&lt;h3 id=&quot;发送command&quot;&gt;发送command&lt;/h3&gt;
-
-&lt;p&gt;CommandHandler内部维护了一个command queue，所有发出的command都在这个queue中保存。当执行命令时，CommandHandler会拦截write方法，将其保存到queue中。&lt;/p&gt;
-
-&lt;h3 id=&quot;读取响应&quot;&gt;读取响应&lt;/h3&gt;
-
-&lt;p&gt;当收到来自服务端的响应时，CommandHandler就从queue head取出command然后进行解析，解析成功后command就执行完毕，这时将其从queue中移除即可，如果还有剩余的数据，就继续从queue中取出command进行解析。值得注意的是CommandHandler采用了buffer的方案来处理可能的TCP粘包拆包问题，其内部维护了一个单独的buffer，每次接收到服务端的数据时并不直接进行解析，而是先将其写入到自身的buffer中，然后对buffer的数据进行解析，而每次解析时会尽可能的消费buffer中的所有数据。&lt;/p&gt;
-
-&lt;h2 id=&quot;command的编解码&quot;&gt;command的编解码&lt;/h2&gt;
-
-&lt;p&gt;command的编码在CommandEncoder中触发，其逻辑也比较简单，就是直接调用了command的encode方法。对于服务端响应的解析则直接位于CommandHandler的channelRead方法中。command的编解码也就是直接实现了redis的通信协议，具体可以参考：&lt;a href=&quot;http://redisdoc.com/topic/protocol.html&quot;&gt;redis通信协议&lt;/a&gt;&lt;/p&gt;
-
-&lt;h2 id=&quot;api的实现&quot;&gt;API的实现&lt;/h2&gt;
-
-&lt;h3 id=&quot;异步api&quot;&gt;异步API&lt;/h3&gt;
-
-&lt;p&gt;在对外API的实现方面，主要逻辑由以下几步构成：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;组装命令对应的Command对象，包括命令的类型、命令的参数、命令的返回类型等&lt;/li&gt;
-  &lt;li&gt;通过StatefulRedisConnection的dispatch方法发送命令，dispatch方法实际上也就是调用了channel的write方法&lt;/li&gt;
-  &lt;li&gt;返回对应的Command对象&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;在异步API的实现中，返回的是一个AsyncCommand对象，AsyncCommand继承了CompletableFuture类型，所以可以作为一个Future返回。AsyncCommand内维护了原始的命令以及返回值的占位符，当解析完成后AsyncCommand就会调用其自身的compelte方法，调用就完成了。&lt;/p&gt;
-
-&lt;h3 id=&quot;同步api&quot;&gt;同步API&lt;/h3&gt;
-
-&lt;p&gt;同步API的实现实际上就是封装了异步调用的API，在返回前阻塞调用Future的get方法。&lt;/p&gt;
-
-&lt;h3 id=&quot;reactive-api&quot;&gt;reactive API&lt;/h3&gt;
-
-&lt;p&gt;reactive API的实现底层也是调用了StatefulRedisConnection的dispatch方法发送命令，然后将返回包装成一个Publisher。&lt;/p&gt;</content><author><name></name></author><summary type="html">Lettuce简介</summary></entry><entry><title type="html">quatrz</title><link href="http://localhost:4000/2019/09/01/Schedule-Task.html" rel="alternate" type="text/html" title="quatrz" /><published>2019-09-01T00:00:00+08:00</published><updated>2019-09-01T00:00:00+08:00</updated><id>http://localhost:4000/2019/09/01/Schedule%20Task</id><content type="html" xml:base="http://localhost:4000/2019/09/01/Schedule-Task.html">&lt;h2 id=&quot;quartz简介&quot;&gt;quartz简介&lt;/h2&gt;
-
-&lt;p&gt;quartz是一个基于java的开源的任务调度框架。&lt;/p&gt;
-
-&lt;h2 id=&quot;quatrz-api&quot;&gt;quatrz API&lt;/h2&gt;
-
-&lt;h3 id=&quot;scheduler&quot;&gt;Scheduler&lt;/h3&gt;
-
-&lt;p&gt;一个Scheduler通过SchedulerFactory创建和销毁。Scheduler提供对Job和Trigger的创建、销毁、暂停等一切调度相关的操作。要启动一个Scheduler，需要显式地调用它的start方法。&lt;/p&gt;
-
-&lt;h3 id=&quot;job&quot;&gt;Job&lt;/h3&gt;
-
-&lt;p&gt;Job是实际的任务执行逻辑的接口，它只有一个方法execute：&lt;/p&gt;
-
-&lt;div class=&quot;language-java highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;  &lt;span class=&quot;kn&quot;&gt;package&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;org&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;na&quot;&gt;quartz&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-  &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;interface&lt;/span&gt; &lt;span class=&quot;nc&quot;&gt;Job&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
-    &lt;span class=&quot;kd&quot;&gt;public&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;execute&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;JobExecutionContext&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;context&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;)&lt;/span&gt;
-      &lt;span class=&quot;kd&quot;&gt;throws&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;JobExecutionException&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;;&lt;/span&gt;
-  &lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
-
-
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;当一个Job被触发时，Scheduler会重新创建一个Job，然后通过一个worker线程执行Job的execute方法，所以实际的Job实现类中无法维护状态字段。JobExecutionContext包含了一些“运行时”的信息，比如触发Job的Scheduler、触发的Trigger、Job对应的JobDetail等等。JobDetail是在创建Job时构建的包含Job的各种详细信息的对象，其中还包括一个JobDataMap的对象，JobDataMap中存储了Job的各种状态信息。&lt;/p&gt;
-
-&lt;h3 id=&quot;trigger&quot;&gt;Trigger&lt;/h3&gt;
-
-&lt;p&gt;Trigger的作用就是触发Job的执行，其中包含了触发时间、触发周期等相关信息。Trigger也有对应的JobDataMap对象，可以用于向Job传递某些参数。Trigger有不同的实现类型，比如SimpleTrigger和CronTrigger。SimpleTrigger的触发类似Java中的Schedule线程池，可以支持单次执行和定时重复执行等；CronTrigger则支持通过cron表达式指定触发时机。&lt;/p&gt;
-
-&lt;p&gt;Trigger包含优先级的概念，当有不同的Trigger在同一时间触发时，quartz会根据其优先级决定触发的顺序，因为在资源不足的情况下，&lt;/p&gt;
-
-&lt;h3 id=&quot;将job和trigger定义分开的原因&quot;&gt;将Job和Trigger定义分开的原因&lt;/h3&gt;
-
-&lt;p&gt;第一个原因，Job和Trigger可以独立存储，并支持多对多的关联，减少重复定义。第二个原因是这样可以降低耦合程度，可以方便后续对Job或者Trigger的编辑和替换。&lt;/p&gt;
-
-&lt;h3 id=&quot;标识&quot;&gt;标识&lt;/h3&gt;
-
-&lt;p&gt;Job和Triiger都有自己的身份标识，身份标识由name和group两部分组成，并规定group+name的组合必须保证在Scheduler范围内唯一。&lt;/p&gt;
-
-&lt;h3 id=&quot;jobdatamap&quot;&gt;JobDataMap&lt;/h3&gt;
-
-&lt;p&gt;每个JobDetail和Trigger都有与其对应的JobDataMap。用户可以在定义JobDetail和Trigger时传入指定的key-value，Job在执行时就可以从JobExecutionContext中获取对应的key-value。此外quartz还支持将JobDataMap中的key-value与Job的属性字段对应起来，只要Job实现类中定义了与JobDataMap中key-value同名的字段，quartz就会通过setter方法将其设置到创建出来的Job实例中。&lt;/p&gt;
-
-&lt;p&gt;quartz还支持Job的持久化，所以在选择要将什么数据存到JobDataMap时要考虑结构变化带来的序列化兼容问题。在Job实现类上加上@PersistJobDataAfterExecution就可以使quartz在任务执行后将JobDataMap更新。@PersistJobDataAfterExecution通常建议和@DisallowConcurrentExecution配合使用，后者会通知quartz不允许并发执行任务，以避免状态同步问题。&lt;/p&gt;
-
-&lt;h3 id=&quot;triggerlistener-和-joblistener&quot;&gt;TriggerListener 和 JobListener&lt;/h3&gt;
-
-&lt;p&gt;quartz提供TriggerLisenter和JobListener，可以在任务触发时获得通知甚至是阻止任务执行。&lt;/p&gt;
-
-&lt;h2 id=&quot;具体逻辑&quot;&gt;具体逻辑&lt;/h2&gt;
-
-&lt;h3 id=&quot;scheduler初始化&quot;&gt;Scheduler初始化&lt;/h3&gt;
-
-&lt;p&gt;Scheduler是通过SchedulerFactory创建的，默认的SchedulerFactory有两种实现：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;StdSchedulerFactory 标准实现，基于properties文件进行初始化&lt;/li&gt;
-  &lt;li&gt;DirectSchedulerFactory 轻量级实现，可以直接通过代码初始化&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h4 id=&quot;stdschedulerfactory&quot;&gt;StdSchedulerFactory&lt;/h4&gt;
-
-&lt;p&gt;StdSchedulerFactory默认会从&lt;em&gt;当前工作路径&lt;/em&gt;查找名为”quartz.properties”的文件进行初始化；如果没有找到，则会用自带的默认配置文件进行初始化，此外用户还可以通过系统属性”org.quartz.properties”额外指定要加载的配置文件的文件名。除了在配置文件中指定具体的配置，用户还可以通过环境变量以及jvm参数(通过-D指定)覆盖默认的选项。下面是默认的配置文件的内容：&lt;/p&gt;
-
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;org.quartz.scheduler.instanceName: DefaultQuartzScheduler
-org.quartz.scheduler.rmi.export: false
-org.quartz.scheduler.rmi.proxy: false
-org.quartz.scheduler.wrapJobExecutionInUserTransaction: false
-org.quartz.threadPool.class: org.quartz.simpl.SimpleThreadPool
-org.quartz.threadPool.threadCount: 10
-org.quartz.threadPool.threadPriority: 5
-org.quartz.threadPool.threadsInheritContextClassLoaderOfInitializingThread: true
-org.quartz.jobStore.misfireThreshold: 60000
-org.quartz.jobStore.class: org.quartz.simpl.RAMJobStore
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;可以看到主要有scheduler、threadPool和jobStore相关的配置，更多的配置可以参考quartz的官方文档。&lt;/p&gt;
-
-&lt;p&gt;StdSchedulerFactory返回的Scheduler对象时StdScheduler，而StdScheduler是对QuartzScheduler的简单封装，QuartzScheduler就是quartz中schedule的核心逻辑了。&lt;/p&gt;
-
-&lt;h4 id=&quot;quartzscheduler&quot;&gt;QuartzScheduler&lt;/h4&gt;
-
-&lt;h5 id=&quot;start&quot;&gt;start&lt;/h5&gt;
-
-&lt;p&gt;start方法会启动一个QuartzSchedulerThread，QuartzScheduler所有的触发操作都发生在这个线程。&lt;/p&gt;
-
-&lt;h5 id=&quot;schedulejob&quot;&gt;scheduleJob&lt;/h5&gt;
-
-&lt;p&gt;scheduleJob会将传入的JobDetai和Trigger存放到JobStore中然后触发相应的Listener以及唤醒scheudle线程。&lt;/p&gt;
-
-&lt;h4 id=&quot;quartzschedulerthread&quot;&gt;QuartzSchedulerThread&lt;/h4&gt;
-
-&lt;p&gt;QuartzScheduleThread相当于一个事件循环，它会在循环中执行以下几个任务：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;阻塞等待worker线程池可用&lt;/li&gt;
-  &lt;li&gt;从JobStore中获取所有满足触发条件的Trigger&lt;/li&gt;
-  &lt;li&gt;调用JobStore的triggersFired方法触发Trigger，注意这里只是触发Trigger，并没有执行对应的Job。这一步的目的主要是在任务执行前给Trigger一个更新自身状态的机会。&lt;/li&gt;
-  &lt;li&gt;JobStore触发Trigger后会读取出Trigger对应的Job信息，根据返回的Job信息构建可执行的JobRunShell对象。&lt;/li&gt;
-  &lt;li&gt;使用worker线程池执行JobRunShell，也就是执行真正的Job逻辑。&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h3 id=&quot;job持久化jobstore&quot;&gt;Job持久化（JobStore）&lt;/h3&gt;
-
-&lt;p&gt;quartz中的JobStore负责储存Job和Trigger定义，它主要与QuartzScheduler交互。按照约定，Job和Trigger的存储都使用group+name的组合作为标识。&lt;/p&gt;
-
-&lt;p&gt;目前quartz提供基于内存的实现以及基于JDBC的实现。基于内存的实现把所有Job和Trigger定义存在内存中，一旦重启所有数据就会丢失；基于JDBC的实现将数据存放在数据库中，同时还支持事务。&lt;/p&gt;</content><author><name></name></author><summary type="html">quartz简介</summary></entry></feed>
+&lt;p&gt;通过例子我们可以发现，perf的分析结果中的Symbol一列显示的都是c语言函数的名字。对于java来说，jit编译产生的函数就会直接显示在symbol里，而不是java的函数名，这时要定位问题就不是那么容易了，我们需要通过额外的手段将symbol和java程序的符号表对应起来，具体后续再讨论了。&lt;/p&gt;</content><author><name></name></author><summary type="html">简介</summary></entry></feed>
