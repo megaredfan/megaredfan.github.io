@@ -1,4 +1,101 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-02-02T12:05:23+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">JVM G1垃圾回收</title><link href="http://localhost:4000/2020/01/12/G1.html" rel="alternate" type="text/html" title="JVM G1垃圾回收" /><published>2020-01-12T00:00:00+08:00</published><updated>2020-01-12T00:00:00+08:00</updated><id>http://localhost:4000/2020/01/12/G1</id><content type="html" xml:base="http://localhost:4000/2020/01/12/G1.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-02-16T21:25:38+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">TCP/IP的诞生</title><link href="http://localhost:4000/2020/02/16/TCPIP.html" rel="alternate" type="text/html" title="TCP/IP的诞生" /><published>2020-02-16T00:00:00+08:00</published><updated>2020-02-16T00:00:00+08:00</updated><id>http://localhost:4000/2020/02/16/TCPIP</id><content type="html" xml:base="http://localhost:4000/2020/02/16/TCPIP.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+
+&lt;p&gt;简单总结了《A Protocol for Packet Network Intercommunication》，这篇论文由VINTON G. CERF 和 ROBERT E. KAHN发表于1974年，论文主要论述了如何在不同的系统之间进行通信。论文中提出的机器之间的寻址以及传输控制协议等等，可以说是奠定了整个以TCP/IP为核心的互联网的基础。&lt;/p&gt;
+
+&lt;h2 id=&quot;问题的引入以及各个概念的提出&quot;&gt;问题的引入以及各个概念的提出&lt;/h2&gt;
+
+&lt;p&gt;在计算机诞生之初，科学家们为了让计算机之间能够互相交换信息制定了用于交换信息的网络协议，并将多台计算机连接到同一个内部网络中。而在这个过程中诞生了很多种不同的网络协议以及大大小小的计算机内部网络，论文的两个作者的目标就是提出一个能够让使用不同网络协议的各个计算机内部网络能够互相交换信息。&lt;/p&gt;
+
+&lt;h3 id=&quot;网关的概念与作用&quot;&gt;网关的概念与作用&lt;/h3&gt;
+
+&lt;p&gt;为了在不同系统之间交互，引入中间层实际上是一个很常见的设计了。论文中提出在不同计算机网络之间通过“网关”连接，而网关主要的功能包括两个：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;兼容两端的网络协议：为了在运行不同协议的网络间交换和传递信息，必须要有一个“翻译”的角色存在，它需要了解两端的协议并支持互相转换。&lt;/li&gt;
+  &lt;li&gt;网络间寻址：为了把消息从一个网络内部的一台主机投递到另一个网络内部的另一台主机，网关需要根据发送端主机给定的地址确定目标主机所在的网络以及其在网络中的地址，如果目标主机所在的网络和自身连接，则根据其在网络中的地址投递，如果目标主机所在的网络不和自身连接，网关就需要把数据重新组织成下游网络能理解的格式并递归地传递到下一个网关。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h3 id=&quot;协议头&quot;&gt;协议头&lt;/h3&gt;
+
+&lt;p&gt;为了使网关能够明确消息的源主机和目标主机，寻址相关的信息就必须随着数据一起传输，这就要求数据传输过程中必须添加一些额外的“控制”相关的信息，论文中称为“internetwork header”，包括：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;源地址和目标地址&lt;/li&gt;
+  &lt;li&gt;序列号和字节数&lt;/li&gt;
+  &lt;li&gt;flag部分，主要用于传递一些特定的控制信息，比如SYN、FIN等&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;从这就提出了TCP/IP协议中各个字段的设计的雏形，在随后的RFC中有了更明确的定义和规范。&lt;/p&gt;
+
+&lt;h3 id=&quot;数据分片&quot;&gt;数据分片&lt;/h3&gt;
+
+&lt;p&gt;一个可以预见的问题就是网关在不同网络之间传递数据时，可能会将一个完整的数据包分割成几个小的数据包，因为不同网络中能够处理的数据包的尺寸可能会不同。这就需要目标主机在接收到被分割过后的数据包时有能力将其重新组装回来。&lt;/p&gt;
+
+&lt;p&gt;而一旦发生数据分片，更多的问题就会随之产生，为了保证可靠传输，则需要更多的额外机制。&lt;/p&gt;
+
+&lt;h2 id=&quot;从进程间通信到tcp&quot;&gt;从进程间通信到TCP&lt;/h2&gt;
+
+&lt;p&gt;论文中基于进程间通信的场景提出了传输控制程序（transmission control program, TCP)的概念。假设每台主机内部都存在一个TCP，进程间的数据发送和接收都经过TCP来处理。进程和TCP之间交换的都是完整的数据，而TCP则有可能在内部将数据分割成若干个分段（Segment)，同样是因为接收端可能会限制单次数据传输的最大尺寸（与网关的数据分片场景类似）。&lt;/p&gt;
+
+&lt;p&gt;这种场景下，就要求TCP支持多路复用。TCP会接收来自不同发送端的数据分段，并将各个分段发送到不同的接收端。为了区别同一台主机下的各个发送端和接收端，数据分段同样也需要附加一些额外的控制信息，论文中称为“process header”，这个信息最终演化成了后来的端口（port）。&lt;/p&gt;
+
+&lt;h3 id=&quot;地址的格式&quot;&gt;地址的格式&lt;/h3&gt;
+
+&lt;p&gt;随后论文中提出了完整的地址的格式，为了在不同网络间定位一个进程，一个TCP地址应包括三个部分：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;网络标识符：标识主机所在的网络，网关能够根据这个信息决定是将数据直接送到目标主机还是继续转发到其他网络&lt;/li&gt;
+  &lt;li&gt;主机标识符：标识一个网络内部的一台主机&lt;/li&gt;
+  &lt;li&gt;端口标识符：标识一台主机内部的一个进程&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h3 id=&quot;数据包的格式&quot;&gt;数据包的格式&lt;/h3&gt;
+
+&lt;p&gt;因为进程间传递的消息可能会在传输途中被分割成若干个分段，所以一个分段应该包括以下信息：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;源端口和目标端口&lt;/li&gt;
+  &lt;li&gt;窗口大小和ack&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&quot;序列号机制&quot;&gt;序列号机制&lt;/h2&gt;
+
+&lt;p&gt;TCP接收端进行分端重组时，需要知道每个分段的序列号。分段的序列号必须是单调递增（或者递减）的，因为接收端需要根据序列号来判断收到的分段是否发生了失序、重复或者丢失。很显然，序列号不可能是无限递增的，而有限的序列号则会导致接收端可能无法判断一个数据包是重传的还是新的，这个问题可以通过引入接收窗口（滑动窗口）来解决。&lt;/p&gt;
+
+&lt;p&gt;根据设计，每个分段都需要分配序列号，而关于序列号的分配，论文中提出了一个方法：假设网络两端的进程交换的是一个无限长的字节流（所以TCP连接是面向字节流的连接），而每个字节都分配一个序号，其序号就是它相对于流的最开端的位置。当TCP创建新的分段时，则将其携带的数据的第一个字节的序号作为整个分段的序号，同时将携带的字节数也设置到协议头中。&lt;/p&gt;
+
+&lt;h3 id=&quot;分段重传与重复检测&quot;&gt;分段重传与重复检测&lt;/h3&gt;
+
+&lt;p&gt;为了尽可能做到可靠传输，论文中引入了超时重传和确认机制。当数据包发出后一定时间内没有收到确认，发送端会重新发送这个分段。&lt;/p&gt;
+
+&lt;p&gt;而接收端维护一个接收窗口，在收到分段时返回预期下一次收到的分端序列号作为确认，同时更新自身的接收窗口。而窗口的初始尺寸则通过建立连接时两边协商确定。&lt;/p&gt;
+
+&lt;h2 id=&quot;操作实践&quot;&gt;操作实践&lt;/h2&gt;
+
+&lt;p&gt;论文中还针对实际实践做了简单的建议，包括用缓冲处理输入输出，用户进程如何与TCP交互等等。&lt;/p&gt;
+
+&lt;p&gt;TCP应如何处理输入/输出的数据做了简单的建议。当收到数据时，做完了必要的校验之后就可以将数据放入缓冲。当接收缓冲满时，可以将接收到的数据丢弃同时不发送确认，这样依赖发送端就会重传。当发送数据时，可以维护一个小的发送缓冲，因为发送进程的缓冲会持有完整的数据。&lt;/p&gt;
+
+&lt;p&gt;当用户进程需要发送数据时，可以先向待发送的数据插入控制信息（transmit control block，TCB），然后通过指针传递给TCP；同理要接收数据时，可以先创建好对应的接收缓冲以及控制信息（receive control block， RCB），然后传递给TCP。&lt;/p&gt;
+
+&lt;h3 id=&quot;连接的概念&quot;&gt;连接的概念&lt;/h3&gt;
+
+&lt;p&gt;论文中提出：当双方都准备好进行数据交互时，双方就建立了连接。但有可能直到真正进行数据交互时，才能真正确认连接是否已经建立。&lt;/p&gt;
+
+&lt;p&gt;而要双方建立连接，则需要几个要素：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;地址，至少有一方能够通过地址定位另一方&lt;/li&gt;
+  &lt;li&gt;TCP控制信息，包括起始序号、窗口大小等，否则双方无法确认接收到的数据是否有意义&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h4 id=&quot;握手和挥手&quot;&gt;握手和挥手&lt;/h4&gt;
+
+&lt;p&gt;要在两个进程间创建连接，就必须确定与进程关联的端口，而很显然一台主机的端口不能是无限的，也就是说端口会被复用。所以为了保证连接状态的正确，在双方交换数据之前需要进行初始化和校验等工作，也就是进行握手。&lt;/p&gt;
+
+&lt;p&gt;为了发送或者接收数据，TCP必须先初始化各种控制信息（TCB和RCB、窗口等），所以发送端发送的第一个数据包应有特殊的标记，同时携带一些需要协商的控制信息（比如窗口大小），这样才能触发接收端的控制信息初始化（也就是SYN请求）。接收端可以在接收到初始化请求之后进行校验，决定是否接收这个请求。因此接收端应该明确表明它是否愿意接收某个端口上的数据请求，也就是后来的listen某个端口。&lt;/p&gt;
+
+&lt;p&gt;当发送端决定不再发送数据之后，需要发送一个携带特殊标记的请求标识将连接关闭（也就是FIN请求），为了确保两端都明确知道连接要进行关闭，接收端也要返回一个特殊请求作为确认，也就是进行挥手。当接收端根据控制信息判断所有的数据接收完毕之后，连接就关闭了。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">JVM G1垃圾回收</title><link href="http://localhost:4000/2020/01/12/G1.html" rel="alternate" type="text/html" title="JVM G1垃圾回收" /><published>2020-01-12T00:00:00+08:00</published><updated>2020-01-12T00:00:00+08:00</updated><id>http://localhost:4000/2020/01/12/G1</id><content type="html" xml:base="http://localhost:4000/2020/01/12/G1.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
 
 &lt;p&gt;G1（Garbage-First）垃圾回收器是在jdk7版本开始被引进的，它的特性在于能够尽可能的满足用户对停顿时间的要求同时还保持较高的吞吐。G1的定位是取代CMS，相比CMS，G1能够更有效的避免碎片化，同时可以让用户指定预期的停顿时间。&lt;/p&gt;
 
@@ -983,96 +1080,4 @@
 
 &lt;h2 id=&quot;其他&quot;&gt;其他&lt;/h2&gt;
 
-&lt;p&gt;MESI协议乍一看和java里的内存模型以及volatile关键字有些相似，后续再详细展开了。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">linux perf</title><link href="http://localhost:4000/2019/09/22/Linux-perf.html" rel="alternate" type="text/html" title="linux perf" /><published>2019-09-22T00:00:00+08:00</published><updated>2019-09-22T00:00:00+08:00</updated><id>http://localhost:4000/2019/09/22/Linux%20perf</id><content type="html" xml:base="http://localhost:4000/2019/09/22/Linux-perf.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
-
-&lt;p&gt;perf是linux系统中提供的性能分析工具，它基于一个叫“Performance counters”的内核子系统实现，同时支持硬件（CPU、PMU(Performance Monitoring Unit)）和软件(软件计数器、tracepoint)层面的性能分析。&lt;/p&gt;
-
-&lt;h3 id=&quot;perf中的事件&quot;&gt;perf中的事件&lt;/h3&gt;
-
-&lt;p&gt;perf与其他性能调优工具一样，都是通过对监测对象进行采样，根据采样点的分布来推断整个程序的行为。通过perf list命令我们可以看到perf支持很多的采样事件，比如branch-misses、cpu-clock等等。perf中预定义的事件属于不同的类型，比如硬件产生的事件（cache 命中/分支miss）和软件产生的事件（context switch/page fault)等等。&lt;/p&gt;
-
-&lt;h3 id=&quot;tracepoint&quot;&gt;tracepoint&lt;/h3&gt;
-
-&lt;p&gt;tracepoint是linux内核中定义的一些hook，如果被开启，它们就会在执行到特定逻辑时被触发，方便其他工具获取系统内部的运行状态等信息，perf就是利用了tracepoint，它会记录和统计tracepoint的各个事件，生成分析报告。&lt;/p&gt;
-
-&lt;h2 id=&quot;使用方式&quot;&gt;使用方式&lt;/h2&gt;
-
-&lt;p&gt;perf 工具的具体使用方式如下：&lt;/p&gt;
-
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;perf [--version] [--help] COMMAND [ARGS]
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;其中的COMMAND列表可以通过执行perf –help查看，下面列举几个常用的command。&lt;/p&gt;
-
-&lt;h3 id=&quot;perf-stat&quot;&gt;perf stat&lt;/h3&gt;
-
-&lt;p&gt;perf stat的作用是执行一个命令并收集其运行过程中的各个数据，它可以提供一个程序运行情况的总体概览。比如：&lt;/p&gt;
-
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;user@localhost:~$ perf stat hostname
-localhost
-
- Performance counter stats for 'hostname':
-
-          0.313464      task-clock (msec)         #    0.481 CPUs utilized          
-                 2      context-switches          #    0.006 M/sec                  
-                 0      cpu-migrations            #    0.000 K/sec                  
-               153      page-faults               #    0.488 M/sec                  
-           896,723      cycles                    #    2.861 GHz                    
-           620,709      instructions              #    0.69  insn per cycle         
-           121,143      branches                  #  386.465 M/sec                  
-             6,247      branch-misses             #    5.16% of all branches        
-
-       0.000651441 seconds time elapsed
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;上面这个例子，通过perf stat运行了hostname命令，并将其运行过程中的一些指标汇总显示了出来，比如task-clock、context-switches等待。默认情况下，perf stat 会输出几个常用的事件的统计，比如：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;task-clock-msecs：cpu 使用率&lt;/li&gt;
-  &lt;li&gt;context-switches：进程切换次数&lt;/li&gt;
-  &lt;li&gt;page-faults：发生缺页的次数&lt;/li&gt;
-  &lt;li&gt;cpu-migrations：表示进程运行过程中发生了多少次CPU迁移，即被调度器从一个CPU转移到另外一个CPU上运行&lt;/li&gt;
-  &lt;li&gt;cycles：处理器时钟，一条机器指令可能需要多个cycles&lt;/li&gt;
-  &lt;li&gt;instructions: 机器指令数目&lt;/li&gt;
-  &lt;li&gt;branches：遇到的分支指令数&lt;/li&gt;
-  &lt;li&gt;branch-misses是预测错误的分支指令数&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;除此之外，我们可以使用-e参数来指定我们感兴趣的事件，比如：&lt;/p&gt;
-
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;user@localhost:~$ perf stat -e cache-misses hostname
-localhost
-
- Performance counter stats for 'hostname':
-
-          682      cache-misses                                                
-
-       0.000646676 seconds time elapsed
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;h3 id=&quot;perf-top&quot;&gt;perf top&lt;/h3&gt;
-
-&lt;p&gt;perf top的作用是实时地显示系统当前的性能统计信息。前面的perf stat用于对一个特定的程序进行分析，而某些时候我们可能并不知道是哪个程序影响了系统性能，这时候就可以用perf top来查找可疑的程序。比如：&lt;/p&gt;
-
-&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;Samples: 775  of event 'cpu-clock', Event count (approx.): 92931021
-Overhead  Shared Object       Symbol
-   8.93%  [kernel]            [k] vsnprintf
-   7.73%  perf                [.] rb_next
-   5.92%  [kernel]            [k] kallsyms_expand_symbol.clone.0
-   5.07%  [kernel]            [k] format_decode
-   4.59%  [kernel]            [k] number
-   3.40%  perf                [.] symbols__insert
-   3.03%  libslang.so.2.2.1   [.] SLtt_smart_puts
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
-
-&lt;p&gt;上面的例子显示perf统计了cpu-clock事件的数据，根据比例进行了排序。和perf stat一样，我们可以通过-e参数指定统计其他的事件，比如perf top -e context-switches可以查看进程切换最多的top N个进程。&lt;/p&gt;
-
-&lt;h3 id=&quot;perf-record--perf-report&quot;&gt;perf record &amp;amp; perf report&lt;/h3&gt;
-
-&lt;p&gt;perf record的作用和perf stat类似，它可以运行一个命令并生成统计信息，不过perf record不会将结果显示出来，而是将结果输出到文件中。perf record生成的文件可以用perf report来进行解析。&lt;/p&gt;
-
-&lt;p&gt;perf record还可以通过-g参数，在分析时生成calling graph，帮助定位更上层的逻辑分布。&lt;/p&gt;
-
-&lt;h2 id=&quot;其他&quot;&gt;其他&lt;/h2&gt;
-
-&lt;p&gt;通过例子我们可以发现，perf的分析结果中的Symbol一列显示的都是c语言函数的名字。对于java来说，jit编译产生的函数就会直接显示在symbol里，而不是java的函数名，这时要定位问题就不是那么容易了，我们需要通过额外的手段将symbol和java程序的符号表对应起来，具体后续再讨论了。&lt;/p&gt;</content><author><name></name></author><summary type="html">简介</summary></entry></feed>
+&lt;p&gt;MESI协议乍一看和java里的内存模型以及volatile关键字有些相似，后续再详细展开了。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry></feed>

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>TCP/IP的诞生 | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="TCP/IP的诞生" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="前言" />
+<meta property="og:description" content="前言" />
+<link rel="canonical" href="http://localhost:4000/2020/02/16/TCPIP.html" />
+<meta property="og:url" content="http://localhost:4000/2020/02/16/TCPIP.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-02-16T00:00:00+08:00" />
+<script type="application/ld+json">
+{"headline":"TCP/IP的诞生","dateModified":"2020-02-16T00:00:00+08:00","datePublished":"2020-02-16T00:00:00+08:00","url":"http://localhost:4000/2020/02/16/TCPIP.html","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2020/02/16/TCPIP.html"},"description":"前言","@type":"BlogPosting","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">TCP/IP的诞生</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-02-16T00:00:00+08:00" itemprop="datePublished">Feb 16, 2020
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="前言">前言</h2>
+
+<p>简单总结了《A Protocol for Packet Network Intercommunication》，这篇论文由VINTON G. CERF 和 ROBERT E. KAHN发表于1974年，论文主要论述了如何在不同的系统之间进行通信。论文中提出的机器之间的寻址以及传输控制协议等等，可以说是奠定了整个以TCP/IP为核心的互联网的基础。</p>
+
+<h2 id="问题的引入以及各个概念的提出">问题的引入以及各个概念的提出</h2>
+
+<p>在计算机诞生之初，科学家们为了让计算机之间能够互相交换信息制定了用于交换信息的网络协议，并将多台计算机连接到同一个内部网络中。而在这个过程中诞生了很多种不同的网络协议以及大大小小的计算机内部网络，论文的两个作者的目标就是提出一个能够让使用不同网络协议的各个计算机内部网络能够互相交换信息。</p>
+
+<h3 id="网关的概念与作用">网关的概念与作用</h3>
+
+<p>为了在不同系统之间交互，引入中间层实际上是一个很常见的设计了。论文中提出在不同计算机网络之间通过“网关”连接，而网关主要的功能包括两个：</p>
+
+<ol>
+  <li>兼容两端的网络协议：为了在运行不同协议的网络间交换和传递信息，必须要有一个“翻译”的角色存在，它需要了解两端的协议并支持互相转换。</li>
+  <li>网络间寻址：为了把消息从一个网络内部的一台主机投递到另一个网络内部的另一台主机，网关需要根据发送端主机给定的地址确定目标主机所在的网络以及其在网络中的地址，如果目标主机所在的网络和自身连接，则根据其在网络中的地址投递，如果目标主机所在的网络不和自身连接，网关就需要把数据重新组织成下游网络能理解的格式并递归地传递到下一个网关。</li>
+</ol>
+
+<h3 id="协议头">协议头</h3>
+
+<p>为了使网关能够明确消息的源主机和目标主机，寻址相关的信息就必须随着数据一起传输，这就要求数据传输过程中必须添加一些额外的“控制”相关的信息，论文中称为“internetwork header”，包括：</p>
+
+<ol>
+  <li>源地址和目标地址</li>
+  <li>序列号和字节数</li>
+  <li>flag部分，主要用于传递一些特定的控制信息，比如SYN、FIN等</li>
+</ol>
+
+<p>从这就提出了TCP/IP协议中各个字段的设计的雏形，在随后的RFC中有了更明确的定义和规范。</p>
+
+<h3 id="数据分片">数据分片</h3>
+
+<p>一个可以预见的问题就是网关在不同网络之间传递数据时，可能会将一个完整的数据包分割成几个小的数据包，因为不同网络中能够处理的数据包的尺寸可能会不同。这就需要目标主机在接收到被分割过后的数据包时有能力将其重新组装回来。</p>
+
+<p>而一旦发生数据分片，更多的问题就会随之产生，为了保证可靠传输，则需要更多的额外机制。</p>
+
+<h2 id="从进程间通信到tcp">从进程间通信到TCP</h2>
+
+<p>论文中基于进程间通信的场景提出了传输控制程序（transmission control program, TCP)的概念。假设每台主机内部都存在一个TCP，进程间的数据发送和接收都经过TCP来处理。进程和TCP之间交换的都是完整的数据，而TCP则有可能在内部将数据分割成若干个分段（Segment)，同样是因为接收端可能会限制单次数据传输的最大尺寸（与网关的数据分片场景类似）。</p>
+
+<p>这种场景下，就要求TCP支持多路复用。TCP会接收来自不同发送端的数据分段，并将各个分段发送到不同的接收端。为了区别同一台主机下的各个发送端和接收端，数据分段同样也需要附加一些额外的控制信息，论文中称为“process header”，这个信息最终演化成了后来的端口（port）。</p>
+
+<h3 id="地址的格式">地址的格式</h3>
+
+<p>随后论文中提出了完整的地址的格式，为了在不同网络间定位一个进程，一个TCP地址应包括三个部分：</p>
+
+<ol>
+  <li>网络标识符：标识主机所在的网络，网关能够根据这个信息决定是将数据直接送到目标主机还是继续转发到其他网络</li>
+  <li>主机标识符：标识一个网络内部的一台主机</li>
+  <li>端口标识符：标识一台主机内部的一个进程</li>
+</ol>
+
+<h3 id="数据包的格式">数据包的格式</h3>
+
+<p>因为进程间传递的消息可能会在传输途中被分割成若干个分段，所以一个分段应该包括以下信息：</p>
+
+<ol>
+  <li>源端口和目标端口</li>
+  <li>窗口大小和ack</li>
+</ol>
+
+<h2 id="序列号机制">序列号机制</h2>
+
+<p>TCP接收端进行分端重组时，需要知道每个分段的序列号。分段的序列号必须是单调递增（或者递减）的，因为接收端需要根据序列号来判断收到的分段是否发生了失序、重复或者丢失。很显然，序列号不可能是无限递增的，而有限的序列号则会导致接收端可能无法判断一个数据包是重传的还是新的，这个问题可以通过引入接收窗口（滑动窗口）来解决。</p>
+
+<p>根据设计，每个分段都需要分配序列号，而关于序列号的分配，论文中提出了一个方法：假设网络两端的进程交换的是一个无限长的字节流（所以TCP连接是面向字节流的连接），而每个字节都分配一个序号，其序号就是它相对于流的最开端的位置。当TCP创建新的分段时，则将其携带的数据的第一个字节的序号作为整个分段的序号，同时将携带的字节数也设置到协议头中。</p>
+
+<h3 id="分段重传与重复检测">分段重传与重复检测</h3>
+
+<p>为了尽可能做到可靠传输，论文中引入了超时重传和确认机制。当数据包发出后一定时间内没有收到确认，发送端会重新发送这个分段。</p>
+
+<p>而接收端维护一个接收窗口，在收到分段时返回预期下一次收到的分端序列号作为确认，同时更新自身的接收窗口。而窗口的初始尺寸则通过建立连接时两边协商确定。</p>
+
+<h2 id="操作实践">操作实践</h2>
+
+<p>论文中还针对实际实践做了简单的建议，包括用缓冲处理输入输出，用户进程如何与TCP交互等等。</p>
+
+<p>TCP应如何处理输入/输出的数据做了简单的建议。当收到数据时，做完了必要的校验之后就可以将数据放入缓冲。当接收缓冲满时，可以将接收到的数据丢弃同时不发送确认，这样依赖发送端就会重传。当发送数据时，可以维护一个小的发送缓冲，因为发送进程的缓冲会持有完整的数据。</p>
+
+<p>当用户进程需要发送数据时，可以先向待发送的数据插入控制信息（transmit control block，TCB），然后通过指针传递给TCP；同理要接收数据时，可以先创建好对应的接收缓冲以及控制信息（receive control block， RCB），然后传递给TCP。</p>
+
+<h3 id="连接的概念">连接的概念</h3>
+
+<p>论文中提出：当双方都准备好进行数据交互时，双方就建立了连接。但有可能直到真正进行数据交互时，才能真正确认连接是否已经建立。</p>
+
+<p>而要双方建立连接，则需要几个要素：</p>
+
+<ol>
+  <li>地址，至少有一方能够通过地址定位另一方</li>
+  <li>TCP控制信息，包括起始序号、窗口大小等，否则双方无法确认接收到的数据是否有意义</li>
+</ol>
+
+<h4 id="握手和挥手">握手和挥手</h4>
+
+<p>要在两个进程间创建连接，就必须确定与进程关联的端口，而很显然一台主机的端口不能是无限的，也就是说端口会被复用。所以为了保证连接状态的正确，在双方交换数据之前需要进行初始化和校验等工作，也就是进行握手。</p>
+
+<p>为了发送或者接收数据，TCP必须先初始化各种控制信息（TCB和RCB、窗口等），所以发送端发送的第一个数据包应有特殊的标记，同时携带一些需要协商的控制信息（比如窗口大小），这样才能触发接收端的控制信息初始化（也就是SYN请求）。接收端可以在接收到初始化请求之后进行校验，决定是否接收这个请求。因此接收端应该明确表明它是否愿意接收某个端口上的数据请求，也就是后来的listen某个端口。</p>
+
+<p>当发送端决定不再发送数据之后，需要发送一个携带特殊标记的请求标识将连接关闭（也就是FIN请求），为了确保两端都明确知道连接要进行关闭，接收端也要返回一个特殊请求作为确认，也就是进行挥手。当接收端根据控制信息判断所有的数据接收完毕之后，连接就关闭了。</p>
+
+  </div><a class="u-url" href="/2020/02/16/TCPIP.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
