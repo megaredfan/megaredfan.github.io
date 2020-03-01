@@ -15,7 +15,7 @@
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2019-12-09T00:00:00+08:00" />
 <script type="application/ld+json">
-{"headline":"jetty QueuedThreadPool 源码分析","dateModified":"2019-12-09T00:00:00+08:00","datePublished":"2019-12-09T00:00:00+08:00","url":"http://localhost:4000/2019/12/09/QueuedThreadPool.html","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/12/09/QueuedThreadPool.html"},"description":"前言 目前手里维护的一个http服务采用的容器是jetty，并且不是spring-boot，连spring都没有，就是手写的jetty server和handler等等。最近在做压测时发现一个奇怪的现象：jetty的线程池在达到满载（最大2000个线程）之后，即使降低了压力，线程池的线程数仍然没有及时的下降到正常水平，而是非常缓慢地下降，大约每两个小时下降1%左右。","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2019/12/09/QueuedThreadPool.html"},"url":"http://localhost:4000/2019/12/09/QueuedThreadPool.html","headline":"jetty QueuedThreadPool 源码分析","dateModified":"2019-12-09T00:00:00+08:00","datePublished":"2019-12-09T00:00:00+08:00","description":"前言 目前手里维护的一个http服务采用的容器是jetty，并且不是spring-boot，连spring都没有，就是手写的jetty server和handler等等。最近在做压测时发现一个奇怪的现象：jetty的线程池在达到满载（最大2000个线程）之后，即使降低了压力，线程池的线程数仍然没有及时的下降到正常水平，而是非常缓慢地下降，大约每两个小时下降1%左右。","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 <link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
 <body><header class="site-header" role="banner">

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>TCP/IP的诞生（二） | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="TCP/IP的诞生（二）" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="TCPv1的提出" />
+<meta property="og:description" content="TCPv1的提出" />
+<link rel="canonical" href="http://localhost:4000/2020/03/01/TCPIP2.html" />
+<meta property="og:url" content="http://localhost:4000/2020/03/01/TCPIP2.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-03-01T00:00:00+08:00" />
+<script type="application/ld+json">
+{"mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2020/03/01/TCPIP2.html"},"url":"http://localhost:4000/2020/03/01/TCPIP2.html","headline":"TCP/IP的诞生（二）","dateModified":"2020-03-01T00:00:00+08:00","datePublished":"2020-03-01T00:00:00+08:00","description":"TCPv1的提出","@type":"BlogPosting","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">TCP/IP的诞生（二）</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-03-01T00:00:00+08:00" itemprop="datePublished">Mar 1, 2020
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="tcpv1的提出">TCPv1的提出</h2>
+
+<p>随着论文《<a href="https://www.cs.princeton.edu/courses/archive/fall08/cos561/papers/cerf74.pdf">A Protocol for Packet Network Intercommunication</a>》在1974年五月发表，Vinton Cerf在1974年十二月发布了<a href="https://tools.ietf.org/html/rfc675">RFC675</a>。在RFC中作者根据论文和其他人的建议提出了TCP的第一个版本，只不过这时候TCP还是transmission control program的缩写。根据论文的描述，TCP的目标是提供一个在不同的网络间进行数据交换的机制，而要达到这个目标TCP将目标分解为两个子问题：提供一个端到端的数据传输控制程序，以及提供一个在网络间进行寻址和路由的机制。</p>
+
+<p>作者在RFC中描述了TCP的地址规范、用户接口定义、与TCP配合使用的部分上层协议（包括日志、FTP等）、TCP包头协议格式、以及TCP的部分实现思路（包括三次握手、滑动窗口机制、输入输出处理、数据包分段等等）。</p>
+
+<h2 id="ien2">IEN2</h2>
+
+<p>而在1977年，TCP已经发展到v2版本，在这个时候TCP的发展出现了重要的转折，也就是Jon Postel在1977年八月发表的一些针对TCP的评论，后来被称为<a href="https://www.rfc-editor.org/ien/ien2.txt">IEN2</a>（Internet Engineering Note number 2）。在这个评论中Jon指出:</p>
+
+<blockquote>
+  <blockquote>
+    <p>We are screwing up in our design of internet protocols by violating the principle of layering. Specifically we are trying to use TCP to do two things: serve as a host level end to end protocol, and to serve as an internet packaging and routing protocol. These two things should be provided in a layered and modular way. I suggest that a new distinct internetwork protocol is needed, and that TCP be used strictly as a host level end to end protocol.</p>
+  </blockquote>
+</blockquote>
+
+<p>简单来说，Jon Postel认为TCP想做的事情太多，应该把TCP要解决的两个问题拆分成两层协议，显然这个建议被TCP的发表者采纳了，这促使了TCP/IP协议栈的诞生，TCP（transmission control program）被拆分成了两个协议：IP（internet protol）和TCP（transmission control protocol），它们分别工作在TCP/IP协议栈的第三层和第四层（OSI七层协议中）。然后TCP更名为”TCP/IP”。这项拆分工作最开始从1978年的TCPv3版本中体现，最终发表于1980的TCPv4则是第一个正式的标准，而相应的RFC则由Jon Postel发布于1981年。</p>
+
+<p>此外，Jon Postel还在IEN2中简要描述了拆分出来的寻址协议（作者称之为Internet Hop Protocol）所需的各个字段以及格式（identifier、TOS、fragmentation，其中一个比较重要的就是TOS（type of service）。TOS字段标识了上层协议希望IP协议如何处理其携带的数据，这主要是为了而支持不同上层协议对传输可靠性以及速度等各方面的不同要求。IEN2中并没有详细描述TOS的规范和定义，而是在1981年的<a href="https://tools.ietf.org/html/rfc791">RFC791</a>中对TOS进行了更详细的描述和规范。</p>
+
+<h2 id="tcpv4">TCPv4</h2>
+
+<p>在1981年发表的TCP/IP v4的各个RFC中详细描述了第一个正式版TCP/IP协议栈的规范。其中提出了我们后来都很熟悉的四层TCP/IP协议栈，TCP协议工作在第三层（传输层），同样在第三层的还有UDP协议，而IP协议工作在第二层（网络层），同时还有一个ICMP协议。ICMP协议的全称是互联网控制消息协议（Internet Control Message Protocol），它实际上运行于IP协议之上，主要用于在IP协议中发送控制消息。<img src="/img/protocol_relationships.png" alt="img" /></p>
+
+<p>而除了TCP/IP协议栈之外，还有一个OSI七层模型，网上有很多比较两者的资料，这里就不详细列举了。而值得注意的是OSI七层模型实际上只是一个参考标准，实际上我们遇到的更多的是TCP/IP四层协议。</p>
+
+<h3 id="ip协议">IP协议</h3>
+
+<p>IP协议的介绍位于RFC791，RCF791描述了IP协议的适用场景：为通过不同网络连接的两台主机交换二进制数据包（称为internet datagram）提供必要的功能。IP协议并不提供数据传输可用性的保障，也不提供流量控制等端到端通信的常用功能（这些功能由TCP协议提供）。同时也规范了我们现在熟悉的IP数据包头的格式。</p>
+
+<p>为了进行网络间数据传输，IP协议主要提供两个重要功能：addressing和fragmentation。在寻址方面，有三个重要的概念：name、address以及routes。IP协议主要面向的是address，而name和routes则主要交给上层和下层协议处理。</p>
+
+<p>RFC中提出了IP地址的规范：由固定长度（32bit）的整数标识，其中IP地址由两个部分组成：标识网络的网络段和标识主机的主机段，而根据地址前几位的数值不同，IP地址分为ABC三类。</p>
+
+<p>由于数据包在不同网络间传递，很可能因为某些网络的限制不得不将数据包分割成不同的分段，RFC中详细描述了分段功能所需的协议支持，主要包括数据包标识（identification）、分段flag（DF和MF）以及fragment offset字段。</p>
+
+<p>IP数据报的包头中有一个TTL字段，标识数据包存活的剩余时间，其目的是为了可以中间设备可以丢弃过期的数据包。这个字段最初的设计是表示剩余存活的秒数，而现在已经变成表示数据包还能经过多少个路由器转发，俗称hop数。</p>
+
+<p><strong>TOS</strong></p>
+
+<p>RFC中详细介绍了TOS字段的组成和具体的取值，支持上层协议自行指定数据的优先级、延迟、吞吐和可靠性方面的要求，具体格式这里就不再列举了。</p>
+
+<h3 id="tcp协议">TCP协议</h3>
+
+<p>TCP协议所在的RFC是RFC793，其中描述了TCP协议的目标是为由不同网络连接的主机提供进程间可靠通信。RFC中规范了现在我们熟悉的TCP包头格式，寻址相关信息只保留了源端口和目标端口，也去掉了fragmentation的相关信息，更加专注于可靠传输本身的实现。</p>
+
+<h3 id="udp协议">UDP协议</h3>
+
+<p>UDP的正式规范也随着TCP/IP协议族的提出一起发表，具体位于RFC768。RFC中描述了UDP运行在IP协议之上，提供了简单的消息发送和接受机制而不需要其他不必要的准备步骤，因此UDP也不保证消息的顺序以及可靠性。</p>
+
+<p>UDP和TCP协议都运行在TCP/IP协议栈的第三层，也是现在人们最熟知的两个传输层协议。具体的对比这里就不做介绍了。</p>
+
+<h2 id="其他">其他</h2>
+
+<p>TCP/IP协议并不是如今唯一的网络协议，但绝对是最重要的那个。TCP/IP的成功可以说是不可复制的，其中也有很多不同原因，包括技术上的（充分考虑了路由的复杂、扩展性等）和历史原因（趁着互联网的东风、开放的标准制定和开发流程等）。</p>
+
+  </div><a class="u-url" href="/2020/03/01/TCPIP2.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

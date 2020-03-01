@@ -1,6 +1,60 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-02-16T21:28:39+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">TCP/IP的诞生</title><link href="http://localhost:4000/2020/02/16/TCPIP.html" rel="alternate" type="text/html" title="TCP/IP的诞生" /><published>2020-02-16T00:00:00+08:00</published><updated>2020-02-16T00:00:00+08:00</updated><id>http://localhost:4000/2020/02/16/TCPIP</id><content type="html" xml:base="http://localhost:4000/2020/02/16/TCPIP.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-03-01T21:44:41+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">TCP/IP的诞生（二）</title><link href="http://localhost:4000/2020/03/01/TCPIP2.html" rel="alternate" type="text/html" title="TCP/IP的诞生（二）" /><published>2020-03-01T00:00:00+08:00</published><updated>2020-03-01T00:00:00+08:00</updated><id>http://localhost:4000/2020/03/01/TCPIP2</id><content type="html" xml:base="http://localhost:4000/2020/03/01/TCPIP2.html">&lt;h2 id=&quot;tcpv1的提出&quot;&gt;TCPv1的提出&lt;/h2&gt;
 
-&lt;p&gt;简单总结了《&lt;a href=&quot;https://www.cs.princeton.edu/courses/archive/fall08/cos561/papers/cerf74.pdf]&quot;&gt;A Protocol for Packet Network Intercommunication&lt;/a&gt;》，这篇论文由VINTON G. CERF 和 ROBERT E. KAHN发表于1974年，论文主要论述了如何在不同的系统之间进行通信。论文中提出的机器之间的寻址以及传输控制协议等等，可以说是奠定了整个以TCP/IP为核心的互联网的基础。&lt;/p&gt;
+&lt;p&gt;随着论文《&lt;a href=&quot;https://www.cs.princeton.edu/courses/archive/fall08/cos561/papers/cerf74.pdf&quot;&gt;A Protocol for Packet Network Intercommunication&lt;/a&gt;》在1974年五月发表，Vinton Cerf在1974年十二月发布了&lt;a href=&quot;https://tools.ietf.org/html/rfc675&quot;&gt;RFC675&lt;/a&gt;。在RFC中作者根据论文和其他人的建议提出了TCP的第一个版本，只不过这时候TCP还是transmission control program的缩写。根据论文的描述，TCP的目标是提供一个在不同的网络间进行数据交换的机制，而要达到这个目标TCP将目标分解为两个子问题：提供一个端到端的数据传输控制程序，以及提供一个在网络间进行寻址和路由的机制。&lt;/p&gt;
+
+&lt;p&gt;作者在RFC中描述了TCP的地址规范、用户接口定义、与TCP配合使用的部分上层协议（包括日志、FTP等）、TCP包头协议格式、以及TCP的部分实现思路（包括三次握手、滑动窗口机制、输入输出处理、数据包分段等等）。&lt;/p&gt;
+
+&lt;h2 id=&quot;ien2&quot;&gt;IEN2&lt;/h2&gt;
+
+&lt;p&gt;而在1977年，TCP已经发展到v2版本，在这个时候TCP的发展出现了重要的转折，也就是Jon Postel在1977年八月发表的一些针对TCP的评论，后来被称为&lt;a href=&quot;https://www.rfc-editor.org/ien/ien2.txt&quot;&gt;IEN2&lt;/a&gt;（Internet Engineering Note number 2）。在这个评论中Jon指出:&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;blockquote&gt;
+    &lt;p&gt;We are screwing up in our design of internet protocols by violating the principle of layering. Specifically we are trying to use TCP to do two things: serve as a host level end to end protocol, and to serve as an internet packaging and routing protocol. These two things should be provided in a layered and modular way. I suggest that a new distinct internetwork protocol is needed, and that TCP be used strictly as a host level end to end protocol.&lt;/p&gt;
+  &lt;/blockquote&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;简单来说，Jon Postel认为TCP想做的事情太多，应该把TCP要解决的两个问题拆分成两层协议，显然这个建议被TCP的发表者采纳了，这促使了TCP/IP协议栈的诞生，TCP（transmission control program）被拆分成了两个协议：IP（internet protol）和TCP（transmission control protocol），它们分别工作在TCP/IP协议栈的第三层和第四层（OSI七层协议中）。然后TCP更名为”TCP/IP”。这项拆分工作最开始从1978年的TCPv3版本中体现，最终发表于1980的TCPv4则是第一个正式的标准，而相应的RFC则由Jon Postel发布于1981年。&lt;/p&gt;
+
+&lt;p&gt;此外，Jon Postel还在IEN2中简要描述了拆分出来的寻址协议（作者称之为Internet Hop Protocol）所需的各个字段以及格式（identifier、TOS、fragmentation，其中一个比较重要的就是TOS（type of service）。TOS字段标识了上层协议希望IP协议如何处理其携带的数据，这主要是为了而支持不同上层协议对传输可靠性以及速度等各方面的不同要求。IEN2中并没有详细描述TOS的规范和定义，而是在1981年的&lt;a href=&quot;https://tools.ietf.org/html/rfc791&quot;&gt;RFC791&lt;/a&gt;中对TOS进行了更详细的描述和规范。&lt;/p&gt;
+
+&lt;h2 id=&quot;tcpv4&quot;&gt;TCPv4&lt;/h2&gt;
+
+&lt;p&gt;在1981年发表的TCP/IP v4的各个RFC中详细描述了第一个正式版TCP/IP协议栈的规范。其中提出了我们后来都很熟悉的四层TCP/IP协议栈，TCP协议工作在第三层（传输层），同样在第三层的还有UDP协议，而IP协议工作在第二层（网络层），同时还有一个ICMP协议。ICMP协议的全称是互联网控制消息协议（Internet Control Message Protocol），它实际上运行于IP协议之上，主要用于在IP协议中发送控制消息。&lt;img src=&quot;/img/protocol_relationships.png&quot; alt=&quot;img&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;而除了TCP/IP协议栈之外，还有一个OSI七层模型，网上有很多比较两者的资料，这里就不详细列举了。而值得注意的是OSI七层模型实际上只是一个参考标准，实际上我们遇到的更多的是TCP/IP四层协议。&lt;/p&gt;
+
+&lt;h3 id=&quot;ip协议&quot;&gt;IP协议&lt;/h3&gt;
+
+&lt;p&gt;IP协议的介绍位于RFC791，RCF791描述了IP协议的适用场景：为通过不同网络连接的两台主机交换二进制数据包（称为internet datagram）提供必要的功能。IP协议并不提供数据传输可用性的保障，也不提供流量控制等端到端通信的常用功能（这些功能由TCP协议提供）。同时也规范了我们现在熟悉的IP数据包头的格式。&lt;/p&gt;
+
+&lt;p&gt;为了进行网络间数据传输，IP协议主要提供两个重要功能：addressing和fragmentation。在寻址方面，有三个重要的概念：name、address以及routes。IP协议主要面向的是address，而name和routes则主要交给上层和下层协议处理。&lt;/p&gt;
+
+&lt;p&gt;RFC中提出了IP地址的规范：由固定长度（32bit）的整数标识，其中IP地址由两个部分组成：标识网络的网络段和标识主机的主机段，而根据地址前几位的数值不同，IP地址分为ABC三类。&lt;/p&gt;
+
+&lt;p&gt;由于数据包在不同网络间传递，很可能因为某些网络的限制不得不将数据包分割成不同的分段，RFC中详细描述了分段功能所需的协议支持，主要包括数据包标识（identification）、分段flag（DF和MF）以及fragment offset字段。&lt;/p&gt;
+
+&lt;p&gt;IP数据报的包头中有一个TTL字段，标识数据包存活的剩余时间，其目的是为了可以中间设备可以丢弃过期的数据包。这个字段最初的设计是表示剩余存活的秒数，而现在已经变成表示数据包还能经过多少个路由器转发，俗称hop数。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;TOS&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;RFC中详细介绍了TOS字段的组成和具体的取值，支持上层协议自行指定数据的优先级、延迟、吞吐和可靠性方面的要求，具体格式这里就不再列举了。&lt;/p&gt;
+
+&lt;h3 id=&quot;tcp协议&quot;&gt;TCP协议&lt;/h3&gt;
+
+&lt;p&gt;TCP协议所在的RFC是RFC793，其中描述了TCP协议的目标是为由不同网络连接的主机提供进程间可靠通信。RFC中规范了现在我们熟悉的TCP包头格式，寻址相关信息只保留了源端口和目标端口，也去掉了fragmentation的相关信息，更加专注于可靠传输本身的实现。&lt;/p&gt;
+
+&lt;h3 id=&quot;udp协议&quot;&gt;UDP协议&lt;/h3&gt;
+
+&lt;p&gt;UDP的正式规范也随着TCP/IP协议族的提出一起发表，具体位于RFC768。RFC中描述了UDP运行在IP协议之上，提供了简单的消息发送和接受机制而不需要其他不必要的准备步骤，因此UDP也不保证消息的顺序以及可靠性。&lt;/p&gt;
+
+&lt;p&gt;UDP和TCP协议都运行在TCP/IP协议栈的第三层，也是现在人们最熟知的两个传输层协议。具体的对比这里就不做介绍了。&lt;/p&gt;
+
+&lt;h2 id=&quot;其他&quot;&gt;其他&lt;/h2&gt;
+
+&lt;p&gt;TCP/IP协议并不是如今唯一的网络协议，但绝对是最重要的那个。TCP/IP的成功可以说是不可复制的，其中也有很多不同原因，包括技术上的（充分考虑了路由的复杂、扩展性等）和历史原因（趁着互联网的东风、开放的标准制定和开发流程等）。&lt;/p&gt;</content><author><name></name></author><summary type="html">TCPv1的提出</summary></entry><entry><title type="html">TCP/IP的诞生</title><link href="http://localhost:4000/2020/02/16/TCPIP.html" rel="alternate" type="text/html" title="TCP/IP的诞生" /><published>2020-02-16T00:00:00+08:00</published><updated>2020-02-16T00:00:00+08:00</updated><id>http://localhost:4000/2020/02/16/TCPIP</id><content type="html" xml:base="http://localhost:4000/2020/02/16/TCPIP.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+
+&lt;p&gt;简单总结了《&lt;a href=&quot;https://www.cs.princeton.edu/courses/archive/fall08/cos561/papers/cerf74.pdf]&quot;&gt;A Protocol for Packet Network Intercommunication&lt;/a&gt;》，这篇论文由 VINTON G. CERF 和 ROBERT E. KAHN 发表于 1974 年，论文主要论述了如何在不同的系统之间进行通信。论文中提出的机器之间的寻址以及传输控制协议等等，可以说是奠定了整个以 TCP/IP 为核心的互联网的基础。&lt;/p&gt;
 
 &lt;h2 id=&quot;问题的引入以及各个概念的提出&quot;&gt;问题的引入以及各个概念的提出&lt;/h2&gt;
 
@@ -22,10 +76,10 @@
 &lt;ol&gt;
   &lt;li&gt;源地址和目标地址&lt;/li&gt;
   &lt;li&gt;序列号和字节数&lt;/li&gt;
-  &lt;li&gt;flag部分，主要用于传递一些特定的控制信息，比如SYN、FIN等&lt;/li&gt;
+  &lt;li&gt;flag 部分，主要用于传递一些特定的控制信息，比如 SYN、FIN 等&lt;/li&gt;
 &lt;/ol&gt;
 
-&lt;p&gt;从这就提出了TCP/IP协议中各个字段的设计的雏形，在随后的RFC中有了更明确的定义和规范。&lt;/p&gt;
+&lt;p&gt;从这就提出了 TCP/IP 协议中各个字段的设计的雏形，在随后的 RFC 中有了更明确的定义和规范。&lt;/p&gt;
 
 &lt;h3 id=&quot;数据分片&quot;&gt;数据分片&lt;/h3&gt;
 
@@ -33,15 +87,15 @@
 
 &lt;p&gt;而一旦发生数据分片，更多的问题就会随之产生，为了保证可靠传输，则需要更多的额外机制。&lt;/p&gt;
 
-&lt;h2 id=&quot;从进程间通信到tcp&quot;&gt;从进程间通信到TCP&lt;/h2&gt;
+&lt;h2 id=&quot;从进程间通信到-tcp&quot;&gt;从进程间通信到 TCP&lt;/h2&gt;
 
-&lt;p&gt;论文中基于进程间通信的场景提出了传输控制程序（transmission control program, TCP)的概念。假设每台主机内部都存在一个TCP，进程间的数据发送和接收都经过TCP来处理。进程和TCP之间交换的都是完整的数据，而TCP则有可能在内部将数据分割成若干个分段（Segment)，同样是因为接收端可能会限制单次数据传输的最大尺寸（与网关的数据分片场景类似）。&lt;/p&gt;
+&lt;p&gt;论文中基于进程间通信的场景提出了传输控制程序（transmission control program, TCP)的概念。假设每台主机内部都存在一个 TCP，进程间的数据发送和接收都经过 TCP 来处理。进程和 TCP 之间交换的都是完整的数据，而 TCP 则有可能在内部将数据分割成若干个分段（Segment)，同样是因为接收端可能会限制单次数据传输的最大尺寸（与网关的数据分片场景类似）。&lt;/p&gt;
 
-&lt;p&gt;这种场景下，就要求TCP支持多路复用。TCP会接收来自不同发送端的数据分段，并将各个分段发送到不同的接收端。为了区别同一台主机下的各个发送端和接收端，数据分段同样也需要附加一些额外的控制信息，论文中称为“process header”，这个信息最终演化成了后来的端口（port）。&lt;/p&gt;
+&lt;p&gt;这种场景下，就要求 TCP 支持多路复用。TCP 会接收来自不同发送端的数据分段，并将各个分段发送到不同的接收端。为了区别同一台主机下的各个发送端和接收端，数据分段同样也需要附加一些额外的控制信息，论文中称为“process header”，这个信息最终演化成了后来的端口（port）。&lt;/p&gt;
 
 &lt;h3 id=&quot;地址的格式&quot;&gt;地址的格式&lt;/h3&gt;
 
-&lt;p&gt;随后论文中提出了完整的地址的格式，为了在不同网络间定位一个进程，一个TCP地址应包括三个部分：&lt;/p&gt;
+&lt;p&gt;随后论文中提出了完整的地址的格式，为了在不同网络间定位一个进程，一个 TCP 地址应包括三个部分：&lt;/p&gt;
 
 &lt;ol&gt;
   &lt;li&gt;网络标识符：标识主机所在的网络，网关能够根据这个信息决定是将数据直接送到目标主机还是继续转发到其他网络&lt;/li&gt;
@@ -55,14 +109,14 @@
 
 &lt;ol&gt;
   &lt;li&gt;源端口和目标端口&lt;/li&gt;
-  &lt;li&gt;窗口大小和ack&lt;/li&gt;
+  &lt;li&gt;窗口大小和 ack&lt;/li&gt;
 &lt;/ol&gt;
 
 &lt;h2 id=&quot;序列号机制&quot;&gt;序列号机制&lt;/h2&gt;
 
-&lt;p&gt;TCP接收端进行分端重组时，需要知道每个分段的序列号。分段的序列号必须是单调递增（或者递减）的，因为接收端需要根据序列号来判断收到的分段是否发生了失序、重复或者丢失。很显然，序列号不可能是无限递增的，而有限的序列号则会导致接收端可能无法判断一个数据包是重传的还是新的，这个问题可以通过引入接收窗口（滑动窗口）来解决。&lt;/p&gt;
+&lt;p&gt;TCP 接收端进行分端重组时，需要知道每个分段的序列号。分段的序列号必须是单调递增（或者递减）的，因为接收端需要根据序列号来判断收到的分段是否发生了失序、重复或者丢失。很显然，序列号不可能是无限递增的，而有限的序列号则会导致接收端可能无法判断一个数据包是重传的还是新的，这个问题可以通过引入接收窗口（滑动窗口）来解决。&lt;/p&gt;
 
-&lt;p&gt;根据设计，每个分段都需要分配序列号，而关于序列号的分配，论文中提出了一个方法：假设网络两端的进程交换的是一个无限长的字节流（所以TCP连接是面向字节流的连接），而每个字节都分配一个序号，其序号就是它相对于流的最开端的位置。当TCP创建新的分段时，则将其携带的数据的第一个字节的序号作为整个分段的序号，同时将携带的字节数也设置到协议头中。&lt;/p&gt;
+&lt;p&gt;根据设计，每个分段都需要分配序列号，而关于序列号的分配，论文中提出了一个方法：假设网络两端的进程交换的是一个无限长的字节流（所以 TCP 连接是面向字节流的连接），而每个字节都分配一个序号，其序号就是它相对于流的最开端的位置。当 TCP 创建新的分段时，则将其携带的数据的第一个字节的序号作为整个分段的序号，同时将携带的字节数也设置到协议头中。&lt;/p&gt;
 
 &lt;h3 id=&quot;分段重传与重复检测&quot;&gt;分段重传与重复检测&lt;/h3&gt;
 
@@ -72,11 +126,13 @@
 
 &lt;h2 id=&quot;操作实践&quot;&gt;操作实践&lt;/h2&gt;
 
-&lt;p&gt;论文中还针对实际实践做了简单的建议，包括用缓冲处理输入输出，用户进程如何与TCP交互等等。&lt;/p&gt;
+&lt;p&gt;论文中还针对实际实践做了简单的建议，包括用缓冲处理输入输出，用户进程如何与 TCP 交互等等。&lt;/p&gt;
 
-&lt;p&gt;TCP应如何处理输入/输出的数据做了简单的建议。当收到数据时，做完了必要的校验之后就可以将数据放入缓冲。当接收缓冲满时，可以将接收到的数据丢弃同时不发送确认，这样依赖发送端就会重传。当发送数据时，可以维护一个小的发送缓冲，因为发送进程的缓冲会持有完整的数据。&lt;/p&gt;
+&lt;p&gt;TCP 应如何处理输入/输出的数据做了简单的建议。当收到数据时，做完了必要的校验之后就可以将数据放入缓冲。当接收缓冲满时，可以将接收到的数据丢弃同时不发送确认，这样依赖发送端就会重传。当发送数据时，可以维护一个小的发送缓冲，因为发送进程的缓冲会持有完整的数据。&lt;/p&gt;
 
-&lt;p&gt;当用户进程需要发送数据时，可以先向待发送的数据插入控制信息（transmit control block，TCB），然后通过指针传递给TCP；同理要接收数据时，可以先创建好对应的接收缓冲以及控制信息（receive control block， RCB），然后传递给TCP。&lt;/p&gt;
+&lt;p&gt;当用户进程需要发送数据时，可以先向待发送的数据插入控制信息（transmit control block，TCB），然后通过指针传递给 TCP；同理要接收数据时，可以先创建好对应的接收缓冲以及控制信息（receive control block， RCB），然后传递给 TCP。&lt;/p&gt;
+
+&lt;p&gt;论文中提到，如果出现缓冲不够用时，可以直接丢弃数据包等待重传，没有着重描述拥塞控制相关的部分，直到 1986 年，从 LBL 到 UC Berkeley 的网络吞吐因为拥塞出现了从 32Kbps 到 40bps 的急剧下降，Van Jacobson 在 1988 年发表论文《Congestion Avoidance and Control》，才对 TCP 的拥塞控制做出了进一步的完善。&lt;/p&gt;
 
 &lt;h3 id=&quot;连接的概念&quot;&gt;连接的概念&lt;/h3&gt;
 
@@ -86,16 +142,16 @@
 
 &lt;ol&gt;
   &lt;li&gt;地址，至少有一方能够通过地址定位另一方&lt;/li&gt;
-  &lt;li&gt;TCP控制信息，包括起始序号、窗口大小等，否则双方无法确认接收到的数据是否有意义&lt;/li&gt;
+  &lt;li&gt;TCP 控制信息，包括起始序号、窗口大小等，否则双方无法确认接收到的数据是否有意义&lt;/li&gt;
 &lt;/ol&gt;
 
 &lt;h4 id=&quot;握手和挥手&quot;&gt;握手和挥手&lt;/h4&gt;
 
 &lt;p&gt;要在两个进程间创建连接，就必须确定与进程关联的端口，而很显然一台主机的端口不能是无限的，也就是说端口会被复用。所以为了保证连接状态的正确，在双方交换数据之前需要进行初始化和校验等工作，也就是进行握手。&lt;/p&gt;
 
-&lt;p&gt;为了发送或者接收数据，TCP必须先初始化各种控制信息（TCB和RCB、窗口等），所以发送端发送的第一个数据包应有特殊的标记，同时携带一些需要协商的控制信息（比如窗口大小），这样才能触发接收端的控制信息初始化（也就是SYN请求）。接收端可以在接收到初始化请求之后进行校验，决定是否接收这个请求。因此接收端应该明确表明它是否愿意接收某个端口上的数据请求，也就是后来的listen某个端口。&lt;/p&gt;
+&lt;p&gt;为了发送或者接收数据，TCP 必须先初始化各种控制信息（TCB 和 RCB、窗口等），所以发送端发送的第一个数据包应有特殊的标记，同时携带一些需要协商的控制信息（比如窗口大小），这样才能触发接收端的控制信息初始化（也就是 SYN 请求）。接收端可以在接收到初始化请求之后进行校验，决定是否接收这个请求。因此接收端应该明确表明它是否愿意接收某个端口上的数据请求，也就是后来的 listen 某个端口。&lt;/p&gt;
 
-&lt;p&gt;当发送端决定不再发送数据之后，需要发送一个携带特殊标记的请求标识将连接关闭（也就是FIN请求），为了确保两端都明确知道连接要进行关闭，接收端也要返回一个特殊请求作为确认，也就是进行挥手。当接收端根据控制信息判断所有的数据接收完毕之后，连接就关闭了。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">JVM G1垃圾回收</title><link href="http://localhost:4000/2020/01/12/G1.html" rel="alternate" type="text/html" title="JVM G1垃圾回收" /><published>2020-01-12T00:00:00+08:00</published><updated>2020-01-12T00:00:00+08:00</updated><id>http://localhost:4000/2020/01/12/G1</id><content type="html" xml:base="http://localhost:4000/2020/01/12/G1.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
+&lt;p&gt;当发送端决定不再发送数据之后，需要发送一个携带特殊标记的请求标识将连接关闭（也就是 FIN 请求），为了确保两端都明确知道连接要进行关闭，接收端也要返回一个特殊请求作为确认，也就是进行挥手。当接收端根据控制信息判断所有的数据接收完毕之后，连接就关闭了。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">JVM G1垃圾回收</title><link href="http://localhost:4000/2020/01/12/G1.html" rel="alternate" type="text/html" title="JVM G1垃圾回收" /><published>2020-01-12T00:00:00+08:00</published><updated>2020-01-12T00:00:00+08:00</updated><id>http://localhost:4000/2020/01/12/G1</id><content type="html" xml:base="http://localhost:4000/2020/01/12/G1.html">&lt;h2 id=&quot;简介&quot;&gt;简介&lt;/h2&gt;
 
 &lt;p&gt;G1（Garbage-First）垃圾回收器是在jdk7版本开始被引进的，它的特性在于能够尽可能的满足用户对停顿时间的要求同时还保持较高的吞吐。G1的定位是取代CMS，相比CMS，G1能够更有效的避免碎片化，同时可以让用户指定预期的停顿时间。&lt;/p&gt;
 
@@ -816,268 +872,4 @@
 
 &lt;p&gt;可以看到，lock实际上具备了内存屏障的语义，那lock具体的作用是什么呢。lock是一个指令前缀，在它后面的指令会保证原子执行。其实现方式就是在指令执行期间设置处理器的&lt;code class=&quot;highlighter-rouge&quot;&gt;LOCK#&lt;/code&gt;信号，这样就能确保处理器能够互斥的操作内存（通过锁定总线来实现），当指令执行完毕之后&lt;code class=&quot;highlighter-rouge&quot;&gt;LOCK#信号&lt;/code&gt;会自动取消。从intel奔腾Pro处理器开始，当要锁定的内存地址已经被加载到cache时，会直接锁定对应的cache而不是设置&lt;code class=&quot;highlighter-rouge&quot;&gt;LOCK#信号&lt;/code&gt;。&lt;/p&gt;
 
-&lt;p&gt;也就是说，volatile的实现中通过lock前缀+一条空的指令来锁定cache，实现了可见性和禁止重排序的功能。至于为什么要用&lt;code class=&quot;highlighter-rouge&quot;&gt;addl $0, 0 (%esp)&lt;/code&gt;配合lock前缀是因为lock前缀只支持内存操作类的指令，所以不能直接用lock前缀加空指令nop。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">cache一致性里的MESI协议</title><link href="http://localhost:4000/2019/10/13/MESI.html" rel="alternate" type="text/html" title="cache一致性里的MESI协议" /><published>2019-10-13T00:00:00+08:00</published><updated>2019-10-13T00:00:00+08:00</updated><id>http://localhost:4000/2019/10/13/MESI</id><content type="html" xml:base="http://localhost:4000/2019/10/13/MESI.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
-
-&lt;p&gt;在有多个核的处理器的处理器中，每个核都有自己的cache，而如何确保多个核的cache内容的一致则是一个很容易遇到的问题，MESI协议就是一个专门用来解决cache一致性的协议。很多处理器使用的都是MESI协议或者MESI协议的变体，而MESI协议其实也是MSI协议的变种。MESI协议采用了回写（write-back）的策略来更新cache，使得其性能进一步提高，但也带来了额外的风险，回写带来的问题可以在编写程序时使用内存屏障来规避。&lt;/p&gt;
-
-&lt;h2 id=&quot;mesi协议简介&quot;&gt;MESI协议简介&lt;/h2&gt;
-
-&lt;p&gt;MESI协议名字的由来是由其描述的四个cache状态组成的，分别是M(modified)、E(exclusive)、S(shared)和I(invalid)。各个状态的描述具体如下：&lt;/p&gt;
-
-&lt;table&gt;
-  &lt;thead&gt;
-    &lt;tr&gt;
-      &lt;th&gt;状态&lt;/th&gt;
-      &lt;th&gt;描述&lt;/th&gt;
-    &lt;/tr&gt;
-  &lt;/thead&gt;
-  &lt;tbody&gt;
-    &lt;tr&gt;
-      &lt;td&gt;Modified&lt;/td&gt;
-      &lt;td&gt;当前cache的内容有效，数据已被修改而且与内存中的数据不一致，数据只在当前cache里存在&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;td&gt;Exclusive&lt;/td&gt;
-      &lt;td&gt;当前cache的内容有效，数据与内存中的数据一致，数据只在当前cache里存在&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;td&gt;Shared&lt;/td&gt;
-      &lt;td&gt;当前cache的内容有效，数据与内存中的数据一致，数据在多个cache里存在&lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;tr&gt;
-      &lt;td&gt;Invalid&lt;/td&gt;
-      &lt;td&gt;当前cache无效&lt;/td&gt;
-    &lt;/tr&gt;
-  &lt;/tbody&gt;
-&lt;/table&gt;
-
-&lt;h3 id=&quot;状态转移&quot;&gt;状态转移&lt;/h3&gt;
-
-&lt;p&gt;MESI协议其实是一个状态机，cache的状态会跟根据外部事件的刺激而发生转移，具体的事件分为两类：处理器对cache的请求和总线对cache的请求：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;PrRd: 处理器请求读一个缓存块&lt;/li&gt;
-  &lt;li&gt;PrWr: 处理器请求写一个缓存块&lt;/li&gt;
-  &lt;li&gt;BusRd: 窥探器请求指出其他处理器请求读一个缓存块&lt;/li&gt;
-  &lt;li&gt;BusRdX: 窥探器请求指出其他处理器请求写一个该处理器不拥有的缓存块&lt;/li&gt;
-  &lt;li&gt;BusUpgr: 窥探器请求指出其他处理器请求写一个该处理器拥有的缓存块&lt;/li&gt;
-  &lt;li&gt;Flush: 窥探器请求指出请求回写整个缓存到主存&lt;/li&gt;
-  &lt;li&gt;FlushOpt: 窥探器请求指出整个缓存块被发到总线以发送给另外一个处理器（缓存到缓存的复制）&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;而状态之间的转换如下图：
-&lt;img src=&quot;/img/Diagrama_MESI.gif&quot; alt=&quot;img&quot; /&gt;&lt;/p&gt;
-
-&lt;table&gt;
-   &lt;caption&gt;处理器操作带来的状态转化&lt;/caption&gt;
-   &lt;thead&gt;
-      &lt;tr&gt;
-         &lt;th&gt;初始状态&lt;/th&gt;
-         &lt;th&gt;操作&lt;/th&gt;
-         &lt;th&gt;响应&lt;/th&gt;
-      &lt;/tr&gt;
-   &lt;/thead&gt;
-   &lt;tbody&gt;
-      &lt;tr&gt;
-         &lt;td rowspan=&quot;2&quot;&gt;Invalid(I)&lt;/td&gt;
-         &lt;td&gt;PrRd&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;给总线发BusRd信号&lt;/li&gt;
-               &lt;li&gt;其他处理器看到BusRd，检查自己是否有有效的数据副本，通知发出请求的缓存&lt;/li&gt;
-               &lt;li&gt;如果其他缓存有有效的副本，状态转换为(S)&lt;b&gt;Shared&lt;/b&gt;&lt;/li&gt;
-               &lt;li&gt;如果其他缓存都没有有效的副本，状态转换为(E)&lt;b&gt;Exclusive&lt;/b&gt;&lt;/li&gt;
-               &lt;li&gt;如果其他缓存有有效的副本, 其中一个缓存发出数据；否则从主存获得数据&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-         &lt;td&gt;PrWr&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;给总线发BusRdX信号&lt;/li&gt;
-               &lt;li&gt;状态转换为(M)&lt;b&gt;Modified&lt;/b&gt;&lt;/li&gt;
-               &lt;li&gt;如果其他缓存有有效的副本, 其中一个缓存发出数据；否则从主存获得数据&lt;/li&gt;
-               &lt;li&gt;如果其他缓存有有效的副本, 见到BusRdX信号后无效其副本&lt;/li&gt;
-               &lt;li&gt;向缓存块中写入修改后的值&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-         &lt;td rowspan=&quot;2&quot;&gt;Exclusive(E)&lt;/td&gt;
-         &lt;td&gt;PrRd&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;无总线事务生成&lt;/li&gt;
-               &lt;li&gt;状态保持不变&lt;/li&gt;
-               &lt;li&gt;读操作为缓存命中&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-         &lt;td&gt;PrWr&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;无总线事务生成&lt;/li&gt;
-               &lt;li&gt;状态转换为(M)&lt;b&gt;Modified&lt;/b&gt;&lt;/li&gt;
-               &lt;li&gt;向缓存块中写入修改后的值&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-         &lt;td rowspan=&quot;2&quot;&gt;Shared(S)&lt;/td&gt;
-         &lt;td&gt;PrRd&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;无总线事务生成&lt;/li&gt;
-               &lt;li&gt;状态保持不变&lt;/li&gt;
-               &lt;li&gt;读操作为缓存命中&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-         &lt;td&gt;PrWr&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;发出总线事务BusUpgr信号&lt;/li&gt;
-               &lt;li&gt;状态转换为(M)&lt;b&gt;Modified&lt;/b&gt;&lt;/li&gt;
-               &lt;li&gt;其他缓存看到BusUpgr总线信号，标记其副本为(I)Invalid.&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-         &lt;td rowspan=&quot;2&quot;&gt;Modified(M)&lt;/td&gt;
-         &lt;td&gt;PrRd&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;无总线事务生成&lt;/li&gt;
-               &lt;li&gt;状态保持不变&lt;/li&gt;
-               &lt;li&gt;读操作为缓存命中&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-         &lt;td&gt;PrWr&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;无总线事务生成&lt;/li&gt;
-               &lt;li&gt;状态保持不变&lt;/li&gt;
-               &lt;li&gt;写操作为缓存命中&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-   &lt;/tbody&gt;
-   &lt;tfoot&gt;&lt;/tfoot&gt;
-&lt;/table&gt;
-
-&lt;table&gt;
-   &lt;caption&gt;不同总线操作带来的状态转化&lt;/caption&gt;
-   &lt;thead&gt;
-      &lt;tr&gt;
-         &lt;th&gt;初始状态&lt;/th&gt;
-         &lt;th&gt;操作&lt;/th&gt;
-         &lt;th&gt;响应&lt;/th&gt;
-      &lt;/tr&gt;
-   &lt;/thead&gt;
-   &lt;tbody&gt;
-      &lt;tr&gt;
-         &lt;td rowspan=&quot;2&quot;&gt;Invalid(I)&lt;/td&gt;
-         &lt;td&gt;BusRd&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;状态保持不变，信号忽略&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-         &lt;td&gt;BusRdX/BusUpgr&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;状态保持不变，信号忽略&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-         &lt;td rowspan=&quot;2&quot;&gt;Exclusive(E)&lt;/td&gt;
-         &lt;td&gt;BusRd&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;状态变为共享&lt;/li&gt;
-               &lt;li&gt;发出总线FlushOpt信号并发出块的内容&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-         &lt;td&gt;BusRdX&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;状态变为无效&lt;/li&gt;
-               &lt;li&gt;发出总线FlushOpt信号并发出块的内容&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-         &lt;td rowspan=&quot;2&quot;&gt;Shared(S)&lt;/td&gt;
-         &lt;td&gt;BusRd&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;状态变为共享&lt;/li&gt;
-               &lt;li&gt;可能发出总线FlushOpt信号并发出块的内容（设计时决定那个共享的缓存发出数据）&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-         &lt;td&gt;BusRdX&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;状态变为无效&lt;/li&gt;
-               &lt;li&gt;可能发出总线FlushOpt信号并发出块的内容（设计时决定那个共享的缓存发出数据）&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-         &lt;td rowspan=&quot;2&quot;&gt;Modified(M)&lt;/td&gt;
-         &lt;td&gt;BusRd&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;状态变为共享&lt;/li&gt;
-               &lt;li&gt;发出总线FlushOpt信号并发出块的内容，接收者为最初发出BusRd的缓存与主存控制器（回写主存）&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-         &lt;td&gt;BusRdX&lt;/td&gt;
-         &lt;td&gt;
-            &lt;ul&gt;
-               &lt;li&gt;状态变为无效&lt;/li&gt;
-               &lt;li&gt;发出总线FlushOpt信号并发出块的内容，接收者为最初发出BusRd的缓存与主存控制器（回写主存）&lt;/li&gt;
-            &lt;/ul&gt;
-         &lt;/td&gt;
-      &lt;/tr&gt;
-   &lt;/tbody&gt;
-   &lt;tfoot&gt;&lt;/tfoot&gt;
-&lt;/table&gt;
-
-&lt;h3 id=&quot;内存屏障的引入&quot;&gt;内存屏障的引入&lt;/h3&gt;
-
-&lt;p&gt;MESI的设计比较简单直接，但是其中有两个地方会导致性能下降：一是更新invalidate状态的cache时，需要尝试从其他cpu甚至是内存获取最新的数据；二是使一个cache变为invalidate时需要等待其他cpu的确认；这两个操作都是比较耗时的，如果cpu在这两个过程中一直等待的话，就会形成浪费。&lt;/p&gt;
-
-&lt;h3 id=&quot;store-buffer&quot;&gt;store buffer&lt;/h3&gt;
-
-&lt;p&gt;为了降低写入invalidate状态的cache的延时，可以引入store buffer。既然写入操作无论如何一定会发生，那么cpu就先发出信号通知其他cpu这个cache已经失效，然后再将本次的写操作更新到store buffer中，等到其他cpu都确认收到信号后再将结果写到内存中。&lt;/p&gt;
-
-&lt;p&gt;这样就避免了更新cache时阻塞等待其他cpu确认的耗时，但是也会导致cpu的更新并没有及时写入cache，所以当cpu需要读取cache时，它需要先确认store buffer中是否有所需的数据，这个机制成为store forwarding。值得注意的是，当cpu在读写自己的store buffer时，对应的数据变更其他cpu是感知不到的。&lt;/p&gt;
-
-&lt;h3 id=&quot;invalidate-queue&quot;&gt;invalidate queue&lt;/h3&gt;
-
-&lt;p&gt;当cpu收到使某个cache失效的消息时，预期的行为是cpu马上执行这个失效操作。但实际上cpu并不会马上执行失效操作，而是先发送确认收到的消息，然后将失效操作加入到invalidate queue中，queue中的操作随后会在适当的时刻执行（并不一定是马上）。之所以需要invalidate queue同样是因为invalidate操作开销比较大，cpu为了执行invalidate操作必须丢弃cache，导致cache命中率下降。这样的好处是能够提高cpu的性能，但同时也导致cache中可能存在过期的数据。&lt;/p&gt;
-
-&lt;h3 id=&quot;内存屏障&quot;&gt;内存屏障&lt;/h3&gt;
-
-&lt;p&gt;针对store buffer和invalidate queue这两个优化带来的问题，我们又提供了内存屏障作为解决方案。内存屏障交给了编写程序的人的手里，利用它就可以规避上面提到的问题。&lt;/p&gt;
-
-&lt;p&gt;内存屏障分为写屏障和读屏障，编写程序时可以在期望的地方加入内存屏障。写屏障会强制cpu清空store buffer的内容，也就是将所有的变更都写入cache，随后变更也就写入了内存，使其对其他cpu可见；读屏障会强制cpu执行invalidate queue中的所有invalidate操作，使自身的cache内容失效，从而使cpu从内存或者其他cpu中获取最新的cache数据。&lt;/p&gt;
-
-&lt;h2 id=&quot;其他&quot;&gt;其他&lt;/h2&gt;
-
-&lt;p&gt;MESI协议乍一看和java里的内存模型以及volatile关键字有些相似，后续再详细展开了。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry></feed>
+&lt;p&gt;也就是说，volatile的实现中通过lock前缀+一条空的指令来锁定cache，实现了可见性和禁止重排序的功能。至于为什么要用&lt;code class=&quot;highlighter-rouge&quot;&gt;addl $0, 0 (%esp)&lt;/code&gt;配合lock前缀是因为lock前缀只支持内存操作类的指令，所以不能直接用lock前缀加空指令nop。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry></feed>
