@@ -1,4 +1,243 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-03-01T21:44:41+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">TCP/IP的诞生（二）</title><link href="http://localhost:4000/2020/03/01/TCPIP2.html" rel="alternate" type="text/html" title="TCP/IP的诞生（二）" /><published>2020-03-01T00:00:00+08:00</published><updated>2020-03-01T00:00:00+08:00</updated><id>http://localhost:4000/2020/03/01/TCPIP2</id><content type="html" xml:base="http://localhost:4000/2020/03/01/TCPIP2.html">&lt;h2 id=&quot;tcpv1的提出&quot;&gt;TCPv1的提出&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-03-22T19:15:50+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">k8s网络模型</title><link href="http://localhost:4000/2020/03/15/k8s-network.html" rel="alternate" type="text/html" title="k8s网络模型" /><published>2020-03-15T00:00:00+08:00</published><updated>2020-03-15T00:00:00+08:00</updated><id>http://localhost:4000/2020/03/15/k8s%20network</id><content type="html" xml:base="http://localhost:4000/2020/03/15/k8s-network.html">&lt;h2 id=&quot;k8s对网络连通性的约定&quot;&gt;k8s对网络连通性的约定&lt;/h2&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;所有的Pod之间可以在不使用NAT网络地址转换的情况下相互通信&lt;/li&gt;
+  &lt;li&gt;所有的Nodes之间可以在不使用NAT网络地址转换的情况下相互通信&lt;/li&gt;
+  &lt;li&gt;每个Pod自己看到的自己的ip和其他Pod看到的一致&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;同一个pod下的容器是如何通信的&quot;&gt;同一个pod下的容器是如何通信的&lt;/h3&gt;
+
+&lt;p&gt;每个pod拥有独立的ip，而同一个pod下的多个容器则共享用一个网络namespace，它们之间的通信可以直接使用localhost。而这个网络namespace的初始化是在pause容器（infra容器）当中初始化的，同一个pod下的其他容器都通过&lt;code class=&quot;highlighter-rouge&quot;&gt;–net=container:NAMEorID&lt;/code&gt;的形式加入pause容器的网络namespace。&lt;/p&gt;
+
+&lt;h4 id=&quot;network-namespace&quot;&gt;network namespace&lt;/h4&gt;
+
+&lt;p&gt;网络namespace是linux中提供网络资源隔离的机制，其包括网络设备、IP协议栈（IPv4和IPv6）、IP路由表、防火墙规则等等。linux同时也提供了veth的机制，使得不同的namespace之间也可以进行数据传输。&lt;/p&gt;
+
+&lt;h3 id=&quot;同一台node上的pod之间是如何通信的&quot;&gt;同一台node上的pod之间是如何通信的&lt;/h3&gt;
+
+&lt;p&gt;默认情况下，容器的网络模式为bridge模式，即在宿主机上创建名为”docker0”的网桥，每个启动的pod都将自己的eth0网卡通过veth设备连接到宿主机的docker0网桥上。也就是说，对于每个pod来说，它的eth0网卡都是一个veth pair的一端，而另一端则连接在宿主机的docker0网桥上。&lt;/p&gt;
+
+&lt;p&gt;当一个pod向同一个node上的另一个pod发送数据时，数据包会通过自身的eth0网卡传递到veth pair的另一端，也就是宿主机的docker0网桥上。网桥在收到数据包时，则会根据数据包的目标MAC地址进行查询，确认目标是否是连接在自身的其他pod。当网桥发现了目标pod时，网桥就会把数据包转发到连接在自身的目标pod的veth pair，然后这些数据就会出现在目标pod的eth0网卡上了。具体示意图如下：
+&lt;img src=&quot;/img/podonnode.png&quot; alt=&quot;img&quot; /&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;veth-和-bridge&quot;&gt;veth 和 bridge&lt;/h4&gt;
+
+&lt;p&gt;veth是linux系统中提供的一种在不同网络namespace之间通信的机制。当创建一个veth设备时，系统会返回两个互相连通的端点，称为veth pair。从任意一端发送的数据会被立刻传输到另一端上。&lt;/p&gt;
+
+&lt;p&gt;当一个veth pair连接到网桥上时，它就会变为网桥的一个“端口”，从端口传入的数据会由网桥处理，而网桥会判断数据包的转发或者丢弃，然后将数据包发送到某个端口上。&lt;/p&gt;
+
+&lt;p&gt;当docker0网桥被创建时，同时还会在系统的路由表中添加路由信息，指定将目标为该宿主机上的pod的数据包交给网桥处理。这样通过IP向宿主机上的pod发送数据时，数据就会交给网桥处理并转发到指定pod了。&lt;/p&gt;
+
+&lt;h4 id=&quot;node上的进程到pod是如何通信的&quot;&gt;node上的进程到pod是如何通信的&lt;/h4&gt;
+
+&lt;p&gt;根据前面提到的内容，node上的其他进程（比如agent）也可以通过ip向pod发送数据时，数据包也会先到达网桥，然后由网桥转发到对应的pod。&lt;/p&gt;
+
+&lt;h3 id=&quot;不同node上的pod之间是如何通信的&quot;&gt;不同node上的pod之间是如何通信的&lt;/h3&gt;
+
+&lt;p&gt;既然网桥可以处理同一宿主机上的不同pod，那么把所有node上的所有pod都连接到同一个网桥上就可以实现互相访问了。或者其实不一定要网桥，只要能够让宿主机直到如何转发pod发送的数据包就可以了，宿主机通过某种机制再转发到实际的pod就可以了。k8s下许多网络方案都是在这个思路下进行的。&lt;/p&gt;
+
+&lt;h2 id=&quot;flannel&quot;&gt;flannel&lt;/h2&gt;
+
+&lt;p&gt;flannel是coreos提供的跨宿主机的容器网络方案的框架，而flannel目前提供三种后端实现：UDP、VXLAN和host gw。&lt;/p&gt;
+
+&lt;p&gt;flannel的工作原理就是在每台宿主机上部署一个agent进程（称为flanneld），flanneld负责在宿主机上配置各种路由信息，来协助宿主机判断数据包的转发目标。每台宿主机都由flanneld划分一个子网，具体的配置信息都存储在etcd中。子网划分的目的在于将同一宿主机上的pod都划给同一个子网，那么数据路由就可以以node为粒度，pod跨node通信时就可以先转发到node，再由node转发到pod。&lt;/p&gt;
+
+&lt;h3 id=&quot;udp模式&quot;&gt;UDP模式&lt;/h3&gt;
+
+&lt;p&gt;UDP模式是最初的实现，但因为其性能等因素目前已经不建议采用了，但是却是最简单直观的方案。&lt;/p&gt;
+
+&lt;p&gt;当node1上的pod1根据ip向node2上的pod2上发送数据时，会发生以下的事情：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;数据会首先出现在node1的docker0网桥上&lt;/li&gt;
+  &lt;li&gt;由于node1的docker0并不处理发到pod2的数据，所以数据包会按照node1上配置的路由信息进行处理&lt;/li&gt;
+  &lt;li&gt;flanneld会在node1上增加额外的路由信息，指定将发往pod2所在网段的数据转发到flannel0的设备上&lt;/li&gt;
+  &lt;li&gt;flannel0实际上是一个TUN设备（Tunnel设备），它会将收到的数据包传递到flanneld进程&lt;/li&gt;
+  &lt;li&gt;flanneld收到数据包后，发现是发给pod2的，于是根据其维护的路由信息将数据包转发到node2上的flanneld进程&lt;/li&gt;
+  &lt;li&gt;node2上的flanneld进程收到数据包之后，再将数据发送到node2上的flannel0设备上&lt;/li&gt;
+  &lt;li&gt;node2上的flannel0收到数据之后，会根据数据包的目标地址转发到docker0网桥上&lt;/li&gt;
+  &lt;li&gt;docker0网桥收到数据后，将其转发到pod2的eth0上，数据包的传递就完成了&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;&lt;img src=&quot;/img/flannel_udp.png&quot; alt=&quot;flannel udp&quot; /&gt;
+之所以叫UDP模式，是因为第5步中flanneld之间是通过UDP通信的，每个flanneld都监听指定端口（8285），而发送时则将数据发送到目标node的指定端口即可。这里使用UDP的原因，大概是因为网络层本来就不保证传输的可靠性，使用UDP更加简单直接，节省资源。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;TUN设备&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;在linux中，TUN设备是一种工作在三层（Network Layer）的虚拟网络设备。TUN设备的功能就是在操作系统内核和用户应用程序之间传递IP包。&lt;/p&gt;
+
+&lt;h3 id=&quot;vxlan&quot;&gt;VXLAN&lt;/h3&gt;
+
+&lt;p&gt;VXLAN 即Virtual Extensible LAN（虚拟可扩展局域网），是linux内核本身就支持的一种网络虚似化技术。所以说，VXLAN可以完全在内核态实现上述UDP模式封装和解封装的工作，从而通过与前面相似的“隧道”机制，构建出覆盖网络（Overlay Network）。&lt;/p&gt;
+
+&lt;p&gt;VXLAN的思路是在现有的三层（网络层）网络上增加一层虚拟的二层（数据链路层）网络，连接到这个虚拟的二层网络上的主机都可以像同一个局域网内的主机一样互相通信。为了让不同主机在这个虚拟的网络上连通，VXLAN在宿主机上创建了一种VTEP（VXLAN Tunnel Endpoint）设备。VTEP的作用实际上和UDP模式中的flanneld进程类似，都是将数据包进行封装和拆封。但是VTEP封装的对象是一个数据帧（对应数据链路层），整个逻辑都可以在内核态完成。&lt;/p&gt;
+
+&lt;p&gt;为了组成虚拟的局域网，发送端的VTEP设备需要将原始的IP数据包封装成一个二层网络的数据帧。而一个数据帧则需要知道目标VTEP设备的MAC地址，这里的MAC地址则由flanneld进程维护，VTEP能够顺利地拿到目标MAC地址，并组装一个数据帧。后边的过程就跟UDP模式非常类似了，随后这个数据帧会被添加一个VXLAN header标识，表明这是一个VXLAN数据帧，接收端在看到VXLAN header标识之后就能够判断应该将数据交给VTEP设备处理。随后这个携带了VXLAN header的数据帧就会被通过UDP发送到目标node上，同样，目标node的地址等信息也由flanneld维护。&lt;/p&gt;
+
+&lt;h3 id=&quot;host-gw模式&quot;&gt;host gw模式&lt;/h3&gt;
+
+&lt;p&gt;host gw模式的工作原理就比较简单了，它不需要额外的手段将数据包封装后再转发，而是通过在路由信息中指定每个子网的下一跳为对应宿主机的ip。比如某个pod2的ip是10.244.1.3，其所在的宿主机node2的ip为10.168.0.3，对应的子网为10.244.1.0/24; 那么host gw模式下flannel会在每台宿主机上都添加这样一条路由规则：&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;
+10.244.1.0/24 via 10.168.0.3 dev eth0
+&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;这条规则表示目的ip地址属于10.244.1.0/24网段的数据包，应该经过本机的eth0设备发出去（即：dev eth0）；并且它下一跳地址（next-hop）是10.168.0.3（即：via 10.168.0.3）。下一跳信息的作用在于当ip数据包从网络层进入链路层封装成帧的时候，eth0设备就会使用下一跳地址对应的MAC地址作为该数据帧的目的MAC地址。这样一来，所有其他pod发往pod1的数据包都会在其所属的宿主机上，通过路由信息发送到pod1对应的宿主机上，宿主机在收到数据包后，就能转发给pod1，这样数据的传输就完成了。host gw模式的工作原理示意图如下：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/img/host_gw.png&quot; alt=&quot;img&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;可想而知，所有的子网和宿主机之间的对应关系以及路由信息也有flannel管理，最终保存在etcd中，每个宿主机只要通过api关注etcd的变化，并及时更新路由就可以了。&lt;/p&gt;
+
+&lt;p&gt;host gw模式通过ip路由的下一跳来转发ip数据包，不需要额外的数据封装，所以性能也会由于UDP模式和VXVLAN模式。但是这个模式有一个要求，那就是所有宿主机必须本来就是在第二层（数据链路层）互通的。&lt;/p&gt;
+
+&lt;h2 id=&quot;calico&quot;&gt;Calico&lt;/h2&gt;
+
+&lt;p&gt;Calico与flannel类似，也是k8s中网络方案的一种实现。其工作原理几乎和flannel的host gw模式一样，但是Calico并不通过etcd和每台宿主机上运行的agent进程来管理路由信息，而是使用了BGP来在整个集群中自动分发路由信息。&lt;/p&gt;
+
+&lt;p&gt;Calico主要有以下几个组件组成：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Felix：运行在每台宿主机上的agent进程，负责维护路由信息等。&lt;/li&gt;
+  &lt;li&gt;etcd：数据存储&lt;/li&gt;
+  &lt;li&gt;BIRD：BGP client，主要负责分发路由信息，默认每台宿主机上的BIRD都要和其他所有宿主机进行通信&lt;/li&gt;
+  &lt;li&gt;BGP Route Reflector：大规模集群下用到的组件，主要用于减少宿主机BIRD之间的通信。通过制定某几个节点作为中心，其他节点则只与中心进行通信。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;strong&gt;BGP（边界网关协议）&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;BGP协议主要用于在大规模网络中实现路由节点信息的同步和共享，具体介绍则可以参考&lt;a href=&quot;https://zh.wikipedia.org/wiki/%E8%BE%B9%E7%95%8C%E7%BD%91%E5%85%B3%E5%8D%8F%E8%AE%AE&quot;&gt;这个链接&lt;/a&gt;。&lt;/p&gt;
+
+&lt;p&gt;除了BGP，Calico还有另一个地方与flannel不同，那就是Calico没有使用网桥，而是直接在容器和宿主机之间用veth pair进行连接。Calico的工作原理示意图如下：
+&lt;img src=&quot;/img/calico.png&quot; alt=&quot;img&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Calico会针对每个容器都创建一个veth pair用于连接宿主机和容器，从容器发出的数据会直接出现在宿主机的对应veth设备上，最终通过路由信息转到eth0设备然后发送出去；而由于没有网桥，Calico还需要添加额外的路由信息来用于接收传入到容器的数据包。比如node2的container4对应的配置：&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;
+10.233.2.3 dev cali5863f3 scope link
+&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;这个配置表示发往10.233.2.3的数据都发送到cali5863f3设备上，也就进入了container4。&lt;/p&gt;
+
+&lt;h3 id=&quot;ipip模式&quot;&gt;IPIP模式&lt;/h3&gt;
+
+&lt;p&gt;对于flannel中host gw模式下要求宿主机必须在二层连通的限制，Calico也同样有这个限制，所以Calico提供了IPIP模式来解决这个问题。在IPIP模式下，容器发出的数据包会通过一个特殊的设备“tul0”发出。Calico的IPIP模式的工作原理示意图如下：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/img/calico_ipip.png&quot; alt=&quot;img&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;这个tunl0设备实际上是一个 IP隧道（IP tunnel）设备。数据包通过这个设备发送时，会在原始数据包的基础上在封装一个IP包头，同时将目标地址设置为原始ip数据包的下一跳地址。这样从容器到宿主机的数据包就被封装成了一个从宿主机到宿主机的数据包，也就可以通过宿主机之间的转发顺利到达目标宿主机了。而目标宿主机收到数据包后会先进行拆封，再将原始的数据包通过veth设备发送到目标容器。&lt;/p&gt;
+
+&lt;p&gt;很显然，当Calico开启IPIP模式时，也会有因为封装和拆封导致的性能损耗，所以实际场景下推荐尽量让所有宿主机都位于同一子网下。&lt;/p&gt;
+
+&lt;h2 id=&quot;k8s-cni插件&quot;&gt;k8s CNI插件&lt;/h2&gt;
+
+&lt;p&gt;k8s中对于网络容器的操作主要通过CNI插件实现。k8s中通过CNI插件维护一个名为“cni0”的网桥来代替docker0网桥。cni0的作用就是接管宿主机下所有pod的网络。CNI的工作原理就是k8s在infra容器（pause容器）启动时，通过插件来初始化容器的网络栈。&lt;/p&gt;
+
+&lt;h3 id=&quot;cni插件的部署&quot;&gt;CNI插件的部署&lt;/h3&gt;
+
+&lt;p&gt;在部署k8s的过程中，有一个步骤是安装kubernetes-cni包，它的目的就是在宿主机上安装CNI插件所需的基础可执行文件，包括bridge、dhcp、portmap等等。这些 CNI 的基础可执行文件，按照功能可以分为三类：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;第一类，叫作Main插件，它是用来创建具体网络设备的二进制文件&lt;/li&gt;
+  &lt;li&gt;第二类，叫作 IPAM（IP Address Management）插件，它是负责分配 IP 地址的二进制文件&lt;/li&gt;
+  &lt;li&gt;第三类，是由 CNI 社区维护的内置 CNI 插件。比如：flannel，就是专门为 Flannel 项目提供的 CNI 插件；tuning，是一个通过 sysctl 调整网络设备参数的二进制文件；portmap，是一个通过 iptables 配置端口映射的二进制文件；bandwidth，是一个使用 Token Bucket Filter (TBF) 来进行限流的二进制文件。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h3 id=&quot;cni的实现&quot;&gt;CNI的实现&lt;/h3&gt;
+
+&lt;p&gt;要实现一个k8s下的容器网络方案，主要的工作内容分为两个部分：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;实现网络方案本身，比如对应flannel来说，主要指实现flanneld进程的逻辑，比如创建和配置网络设备和路由信息等等。&lt;/li&gt;
+  &lt;li&gt;实现对应的CNI插件，这部分主要指配置 Infra 容器里面的网络栈，并把它连接在 CNI 网桥上。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h3 id=&quot;cni的工作流程&quot;&gt;CNI的工作流程&lt;/h3&gt;
+
+&lt;p&gt;当k8s在处理容器网络相关的逻辑时，主要工作都通过CRI（Container Runtime Interface，容器运行时接口）来完成，CRI对于docker来说，就是dockershim。&lt;/p&gt;
+
+&lt;p&gt;dockershim在初始化网络配置时，会宿主机的cni配置目录下（/etc/cni/net.d) 找到对应第一个配置文件，然后加载其内容并执行。 在执行插件前，dockershim会初始化一系列CNI插件的参数，这些参数主要分为两部分：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;CNI环境变量，其中包括CNI_COMMAND。CNI_COMMAND的取值有ADD和DEL，分别表示将容器添加到CNI网络中和将容器从CNI网络中移除。这两个操作也是CNI插件要实现的两个方法，对于网桥类型的CNI插件来说，这两个操作意味着把容器以veth pair的方式“插”到 CNI 网桥上，或者从网桥上“拔”掉。&lt;/li&gt;
+  &lt;li&gt;CNI配置文件里指定的默认插件的配置信息。dockershim会以JSON数据的格式，通过标准输入（stdin）的方式传递给CNI插件。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;值得注意的是，k8s目前不支持多个CNI插件混用。如果在CNI配置目录（/etc/cni/net.d）里放置了多个CNI配置文件的话，dockershim 只会加载按字母顺序排序的第一个插件。但另一方面，CNI允许在一个CNI配置文件里通过plugins字段定义多个插件进行协作，比如flannel的配置文件中就指定了flannel和portmap两个插件。&lt;/p&gt;</content><author><name></name></author><summary type="html">k8s对网络连通性的约定</summary></entry><entry><title type="html">k8s client-go informer机制简介</title><link href="http://localhost:4000/2020/03/08/k8s-informer.html" rel="alternate" type="text/html" title="k8s client-go informer机制简介" /><published>2020-03-08T00:00:00+08:00</published><updated>2020-03-08T00:00:00+08:00</updated><id>http://localhost:4000/2020/03/08/k8s%20informer</id><content type="html" xml:base="http://localhost:4000/2020/03/08/k8s-informer.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
+
+&lt;p&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;client-go&lt;/code&gt; 是k8s提供的用于和k8s集群交互的sdk，根据k8s集群版本不同分为两个维护分支：&lt;code class=&quot;highlighter-rouge&quot;&gt;v0.x.y&lt;/code&gt;版本（对应高于或等于0.17.0版本的k8s集群）和&lt;code class=&quot;highlighter-rouge&quot;&gt;kubernetes-1.x.y&lt;/code&gt;版本（对应低于0.17.0版本的k8s集群）。其主要功能包括以下几个部分：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;kubernetes&lt;/code&gt; 与k8s api通信&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;discovery&lt;/code&gt; 服务发现相关功能&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;dynamic&lt;/code&gt; 构造并向k8s api发送动态请求&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;plugin/pkg/client/auth&lt;/code&gt; 鉴权相关&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;transport&lt;/code&gt; 建立连接相关&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;tools/cache&lt;/code&gt; 客户端缓存的实现，主要在编写controller时用到，本文的介绍重点&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;由于client-go根据k8s服务端版本的不同区分了两个主要版本，具体安装时需要根据实际情况进行区分，具体安装方式可以参考这个&lt;a href=&quot;https://github.com/kubernetes/client-go/blob/master/INSTALL.md&quot;&gt;链接&lt;/a&gt;。&lt;/p&gt;
+
+&lt;h2 id=&quot;k8s中的controller&quot;&gt;k8s中的controller&lt;/h2&gt;
+
+&lt;p&gt;controller在k8s中是一个重要的概念，一个controller主要负责追踪某个（或多个）资源的状态，并努力使其追踪的资源的状态达到预期的值。controller内部的逻辑主体是一个无限循环，称为“控制循环”。控制循环的大致流程如下：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;循环开始&lt;/li&gt;
+  &lt;li&gt;获取目标资源的当前状态和预期状态&lt;/li&gt;
+  &lt;li&gt;如果当前状态和预期状态有差异，尝试通过各种手段使当前状态向预期状态靠拢&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;当controller发现资源的当前状态和预期状态不同时，它可以直接操作资源使其状态发生变化，但是实际中更常见的做法是向k8s api server发送请求，触发其他事件来使资源发生变化。后者更值得考虑的原因在于，一个controller不应该完成许多工作，因为操作可能会失败，而复杂的控制循环则会使系统复杂度上升，难以维护。举个例子：k8s中的job controller，当它发现需要创建新的job实例时，并不会直接创建新的pod，而是向api server发送创建pod的请求，随后。。。&lt;/p&gt;
+
+&lt;h2 id=&quot;informer&quot;&gt;informer&lt;/h2&gt;
+
+&lt;p&gt;一个controller的逻辑主体就是在循环中进行”获取状态 -&amp;gt; 进行处理”的处理，所以client-go提供了从k8s api server获取资源状态的支持，也称为informer。&lt;/p&gt;
+
+&lt;p&gt;informer指的是client-go/tools/cache包下的逻辑的代称，它的主要功能就是是帮助controller与k8s api server交互，主要包括获取资源对象的信息以及根据资源对象的变更事件触发自定义的回调。它实际上包含几个组件：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;
+    &lt;p&gt;reflector: reflector主要负责监听（watch）具体的资源类型，而watch具体是通过&lt;code class=&quot;highlighter-rouge&quot;&gt;ListAndWatch&lt;/code&gt;实现。被监听的资源不限于内置的类型，也可以是自定义的资源类型。当reflector通过watch api接收到有新的资源实例被创建的通知时，它会主动通过list api获取到新的资源实例，然后将其放入到&lt;code class=&quot;highlighter-rouge&quot;&gt;Delta Fifo&lt;/code&gt;队列中。&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;informer: informer主要的工作是循环地从&lt;code class=&quot;highlighter-rouge&quot;&gt;Delta Fifo&lt;/code&gt;队列中取出对象，随后通过回调传递给controller，以及交给indexer缓存下来。&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;indexer: indexer主要提供索引的功能，而通常对象的索引是根据对象的label创建的。indexer通过线程安全的结构来存储对象，同时cache包下定义了默认的根据对象label生成索引的函数&lt;code class=&quot;highlighter-rouge&quot;&gt;MetaNamespaceKeyFunc&lt;/code&gt;，具体格式为&lt;code class=&quot;highlighter-rouge&quot;&gt;&amp;lt;namespace&amp;gt;/&amp;lt;name&amp;gt;&lt;/code&gt;。&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&quot;controller中使用informer的场景&quot;&gt;controller中使用informer的场景&lt;/h2&gt;
+
+&lt;p&gt;下图是controller在实际中通过client-go与k8s api server交互的示意图：
+&lt;img src=&quot;/img/client-go-controller-interaction.jpeg&quot; alt=&quot;img&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;从示意图中我们可以看出client-go主要提供的两个机制：第6步的事件注册和触发机制以及第9步的根据key获取对象。同时我们可以看到，在controller中实际有两个reference：informer reference和index reference，它们分别对应前面提到的两个功能。&lt;/p&gt;
+
+&lt;p&gt;而informer内部的流程主要包括几个关键点：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;reflector 通过list &amp;amp; watch 从api server获取资源的信息，其中初始化时通过list获取最新信息，随后依赖watch监听资源变化，同时伴随可配置的定时resync机制。&lt;/li&gt;
+  &lt;li&gt;reflector 获取到的资源变更事件都通过&lt;code class=&quot;highlighter-rouge&quot;&gt;Delta Fifo&lt;/code&gt;队列传递到informer&lt;/li&gt;
+  &lt;li&gt;informer 从队列中获取到事件及对应的对象时，会触发对应的controller回调并将对象传递到indexer进行索引和缓存。&lt;/li&gt;
+  &lt;li&gt;controller 获取对象时，会直接从indexer返回缓存，提高性能&lt;/li&gt;
+  &lt;li&gt;对象在controller内部传递时也通过key传递，而不是直接传递对象本身，在实际处理时才从indexer获取最新状态的对象&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;另外示意图中的几个组件也需要介绍一下：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;
+    &lt;p&gt;Resource Event Handlers: controller注册的事件回调函数，informer会在触发这些回调时将对应的资源对象也传递给controller，推荐的做法是根据对象获取其对应的key，然后将key放入work queue中（而不是直接把对象放进queue），随后再由其他组件处理。&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Work queue: 用于存放在事件回调中收到的对象的key，通过队列来解耦对象的接受和处理。&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Process Item: 实际处理从队列中获取的对象的逻辑，在做实际操作前往往需要从队列中获得的key从indexer reference获取资源对象。&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">TCP/IP的诞生（二）</title><link href="http://localhost:4000/2020/03/01/TCPIP2.html" rel="alternate" type="text/html" title="TCP/IP的诞生（二）" /><published>2020-03-01T00:00:00+08:00</published><updated>2020-03-01T00:00:00+08:00</updated><id>http://localhost:4000/2020/03/01/TCPIP2</id><content type="html" xml:base="http://localhost:4000/2020/03/01/TCPIP2.html">&lt;h2 id=&quot;tcpv1的提出&quot;&gt;TCPv1的提出&lt;/h2&gt;
 
 &lt;p&gt;随着论文《&lt;a href=&quot;https://www.cs.princeton.edu/courses/archive/fall08/cos561/papers/cerf74.pdf&quot;&gt;A Protocol for Packet Network Intercommunication&lt;/a&gt;》在1974年五月发表，Vinton Cerf在1974年十二月发布了&lt;a href=&quot;https://tools.ietf.org/html/rfc675&quot;&gt;RFC675&lt;/a&gt;。在RFC中作者根据论文和其他人的建议提出了TCP的第一个版本，只不过这时候TCP还是transmission control program的缩写。根据论文的描述，TCP的目标是提供一个在不同的网络间进行数据交换的机制，而要达到这个目标TCP将目标分解为两个子问题：提供一个端到端的数据传输控制程序，以及提供一个在网络间进行寻址和路由的机制。&lt;/p&gt;
 
@@ -753,123 +992,4 @@
 
 &lt;h2 id=&quot;其他&quot;&gt;其他&lt;/h2&gt;
 
-&lt;p&gt;大部分内容参考了&lt;a href=&quot;https://blog.csdn.net/ITer_ZC/category_9263360.html&quot;&gt;iter_zc的博客&lt;/a&gt;，在此表示感谢。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">TCP拥塞控制</title><link href="http://localhost:4000/2019/10/27/TCP-congestion.html" rel="alternate" type="text/html" title="TCP拥塞控制" /><published>2019-10-27T00:00:00+08:00</published><updated>2019-10-27T00:00:00+08:00</updated><id>http://localhost:4000/2019/10/27/TCP%20congestion</id><content type="html" xml:base="http://localhost:4000/2019/10/27/TCP-congestion.html">&lt;h2 id=&quot;tcp拥塞控制的起源&quot;&gt;TCP拥塞控制的起源&lt;/h2&gt;
-
-&lt;p&gt;1986年，从LBL到UC Berkeley的网络吞吐因为拥塞出现了从32Kbps到40bps的急剧下降，Van Jacobson 在1988年的论文《Congestion Avoidance and Control》从这个问题出发，提出了数据包守恒定律以及慢启动、拥塞控制和快重传的算法，在1990年又提出了快恢复算法。&lt;/p&gt;
-
-&lt;h2 id=&quot;数据包守恒原则&quot;&gt;数据包守恒原则&lt;/h2&gt;
-
-&lt;p&gt;在一个运行平稳的TCP连接中流动的数据包应该是守恒的，意思是当只有旧的数据包被成功传输到对端后，新的数据包才能加入到连接中。在TCP协议中，我们可以使用ack来作为判断数据包是否已经成功到达对端的依据，就是说当发送端收到good ack（大于发送端当前已经收到的最大ack的ack）时，它就可以发送新的数据包了。这种根据ack来决定继续发送数据包的机制就叫做self clocking（也叫做ack clocking）。&lt;/p&gt;
-
-&lt;h2 id=&quot;慢启动&quot;&gt;慢启动&lt;/h2&gt;
-
-&lt;p&gt;通过数据包守恒原则，我们知道可以通过ack来决定是否发送新的数据，而要收到ack就要先发送数据。慢启动就开始发送数据时的行为控制。慢启动的总体思路就是从一个很低的初始值开始，逐渐增加数据发送的速度，直到达到超时或者丢包为止。慢启动的实现思路如下：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;每个连接维护一个变量cwnd（congestion window）&lt;/li&gt;
-  &lt;li&gt;当连接刚建立或者遇到丢包时，将cwnd设置为1，单位为MSS（maximum segment size）&lt;/li&gt;
-  &lt;li&gt;每收到一个新的ack，cwnd加一&lt;/li&gt;
-  &lt;li&gt;当发送数据时，能够发送的数据包数量为min(cwnd,awnd)，awnd为接收端的滑动窗口大小(reciver’s advertised window)&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;可以预见，在没有出现超时或者丢包时，慢启动增长的速度是指数级的，所以慢启动实际上并没有那么“慢”，“慢”是慢在它的起点只有1个MSS。&lt;/p&gt;
-
-&lt;h2 id=&quot;拥塞避免&quot;&gt;拥塞避免&lt;/h2&gt;
-
-&lt;p&gt;前面提到，慢启动的目的是逐渐增加发送速度进行试探，直到出现网络拥塞，而真正出现拥塞时又该怎么做呢，就是“拥塞避免”所做的事情了。拥塞避免主要由两部分组成：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;一个判断当前网路出现拥塞的机制&lt;/li&gt;
-  &lt;li&gt;在出现拥塞时降低发送速度的机制&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;而拥塞避免的实现思路如下：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;当出现超时时，将cwnd设置为当前值的一半（即当出现超时时就认为是出现了拥塞）&lt;/li&gt;
-  &lt;li&gt;每收到一个新的ack，cwnd加1/cwnd（即当传输成功cwnd个数据包时，窗口大小加一，也就是随着RTT线性增加）&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;这里的两个变更cwnd的行为通常称为“乘法减小”和“加法增大”。&lt;/p&gt;
-
-&lt;h2 id=&quot;结合慢启动和拥塞避免的算法&quot;&gt;结合慢启动和拥塞避免的算法&lt;/h2&gt;
-
-&lt;p&gt;值得注意的是，慢启动和拥塞避免实际上是两个不同的算法，它们一个用于试探网络资源的上限，另一个用于资源使用率达到或者接近上限时的行为。在1988年的论文中给出了一个结合了慢启动和拥塞避免的算法，具体实现思路如下：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;发送端维持两个变量：拥塞窗口cwnd（congestion window）和慢启动门限ssthresh（slow start threshold），通过这两个变量来决定当前应该执行慢启动还是拥塞避免算法。&lt;/li&gt;
-  &lt;li&gt;发送数据时，能够发送的数据包数量为min(cwnd,awnd)&lt;/li&gt;
-  &lt;li&gt;出现超时时，ssthresh更新为cwnd/2（但不能小于2），cwnd设置为1&lt;/li&gt;
-  &lt;li&gt;每收到一个新的zck，发送端的行为是:
-    &lt;ul&gt;
-      &lt;li&gt;如果&lt;code class=&quot;highlighter-rouge&quot;&gt;cwnd&amp;lt;ssthresh&lt;/code&gt;，&lt;code class=&quot;highlighter-rouge&quot;&gt;cwnd+=1&lt;/code&gt;（慢启动阶段，窗口指数级别增加）&lt;/li&gt;
-      &lt;li&gt;否则&lt;code class=&quot;highlighter-rouge&quot;&gt;cwnd+=1/cwdn&lt;/code&gt;（拥塞避免阶段，窗口线性增加）&lt;/li&gt;
-    &lt;/ul&gt;
-  &lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h2 id=&quot;快重传&quot;&gt;快重传&lt;/h2&gt;
-
-&lt;p&gt;快速重传的目的就是让发送端尽快感知到丢包。TCP发送方在每发送一个分段时会启动一个计时器，如果相应的数据包确认没在特定时间内被送回，发送方就假设这个分段在网络上丢失了，需要重发。这也是TCP用来估计RTT的测量方法。&lt;/p&gt;
-
-&lt;h3 id=&quot;重复确认&quot;&gt;重复确认&lt;/h3&gt;
-
-&lt;p&gt;重复确认基于以下过程：如果接收方接收到一个数据分段，就会将该分段的序列号加上数据字节长的值，作为分段确认的确认号，发送回发送方，表示期望发送方发送下一个序列号的分段。但是如果接收方提前收到更大的序列号的分段，或者说接收到无序到达的分段，接收方需要&lt;strong&gt;立即&lt;/strong&gt;使用之前的确认号发送分段确认。此时如果发送方收到接收方相同确认号的分段确认超过1次，并且该对应序列号的分段超时计时器仍没超时的话，则这就是出现重复确认，需要进入快速重传。&lt;/p&gt;
-
-&lt;p&gt;快送重传就是基于以下机制：如果假设重复阈值为3，当发送方收到4次相同确认号的分段确认（第1次收到确认期望序列号，加3次重复的期望序列号确认）时，则可以认为继续发送更高序列号的分段将会被接受方丢弃，而且会无法有序送达。发送方应该忽略超时计时器的等待重发，立即重发重复分段确认中确认号对应序列号的分段。&lt;/p&gt;
-
-&lt;h2 id=&quot;tcp拥塞控制的各个实现&quot;&gt;TCP拥塞控制的各个实现&lt;/h2&gt;
-
-&lt;p&gt;这里先列举各个TCP拥塞控制的实现，具体接受后续再补上了。&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;TCP Tahoe/Reno&lt;/li&gt;
-  &lt;li&gt;TCP Vegas&lt;/li&gt;
-  &lt;li&gt;TCP New Reno&lt;/li&gt;
-  &lt;li&gt;TCP BIC/CUBIC&lt;/li&gt;
-  &lt;li&gt;TCP Westwood/Westwood+&lt;/li&gt;
-  &lt;li&gt;Compound TCP&lt;/li&gt;
-  &lt;li&gt;TCP PRR&lt;/li&gt;
-  &lt;li&gt;TCP BBR&lt;/li&gt;
-&lt;/ul&gt;</content><author><name></name></author><summary type="html">TCP拥塞控制的起源</summary></entry><entry><title type="html">java内存模型与volatile</title><link href="http://localhost:4000/2019/10/20/volatile.html" rel="alternate" type="text/html" title="java内存模型与volatile" /><published>2019-10-20T00:00:00+08:00</published><updated>2019-10-20T00:00:00+08:00</updated><id>http://localhost:4000/2019/10/20/volatile</id><content type="html" xml:base="http://localhost:4000/2019/10/20/volatile.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
-
-&lt;p&gt;在计算机硬件结构中，为了平衡cpu和内存之间由于速度带来的差距，cpu中引入了cache作为处理器与内存之间的缓冲。在多核的处理器中，每个核都有属于自己的cache，这就带来了cache一致性的问题。前面提到的MESI协议就是用于处理cache一致性问题的一个协议，它将cache的内容分成几个状态，并要求每个核监听总线上传来的其他核发出的事件，根据这些外部事件以及自身操作cache的内部事件来维护cache的内容和状态，以达到cache一致性。但MESI协议中特定的优化有时会导致cache中存在临时的不一致的数据，所以引入了内存屏障来规避这个问题。&lt;/p&gt;
-
-&lt;p&gt;即使有cache的存在，当处理器等待cache的载入时仍然会浪费时间。所以处理器会在当前指令因等待数据阻塞时尝试执行其他不依赖这个数据的指令，来尽可能提高处理速度，这称为乱序执行。处理器会保证乱序执行的结果与顺序执行的结果一致，但仅在当前处理器范围内。如果有其他任务的计算依赖当前任务的中间结果，就有可能出现不符合预期的结果，这个问题同样可以通过内存屏障来规避。&lt;/p&gt;
-
-&lt;h2 id=&quot;java的内存模型&quot;&gt;java的内存模型&lt;/h2&gt;
-
-&lt;p&gt;java虚拟机规范中定义了java自身的内存模型，通过这个内存模型来屏蔽不同的操作系统和硬件带来的差异，达到各个平台运行效果一致的目标。java内存模型规定所有的变量都存储在主内存中，每个线程有自己的工作内存，线程在访问变量时都直接从工作内存中访问，而不能访问主内存。一个线程不能访问其他的线程的工作内存，线程之间的变量传递都需要经过主内存来完成。这里的线程、工作内存和主内存有有点类似计算机硬件结构中的处理器、cache和内存的关系。此外，java虚拟机中的即时编译中也有类似指令重排序的优化。java内存模型的介绍比较多，这里就不详细展开了。&lt;/p&gt;
-
-&lt;h2 id=&quot;volatile变量&quot;&gt;volatile变量&lt;/h2&gt;
-
-&lt;p&gt;在java中有一个用于实现单例模式的方式，叫做“双成例检查”。双成例检查利用了synchronized和volatile关键词保证了在并发执行的情况下单例模式的正确性。但是在jdk1.5以前（不包括1.5）的版本是存在问题的，其中具体的原因就是volatile关键词底层实现在jdk1.5才完全正确。&lt;/p&gt;
-
-&lt;p&gt;根据volatile的特性，如果一个变量被标记为volatile，那么它将获得两个额外的属性：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;在一个线程中对于volatile变量的修改会立即被其他线程感知到，也就是可见性。前面提到，在java内存模型中，各个线程之间的变量传递都需要先经过主内存，所以为了性能考虑，线程不会总是从主内存获取最新的变量的值，而是在特定的时机才从主内存同步最新的内容。而volatile关键词则能够强制触发其他线程同步主内存的内容。&lt;/li&gt;
-  &lt;li&gt;禁止指令重排序。对于一个普通的变量，只会保证所有依赖这个变量的地方都能获得正确的结果，而并不会保证对这个变量赋值的顺序和实际的代码执行顺序一致，比如不依赖这个变量的代码可能会被挪到之前或者之后执行，也就是“看起来就像是顺序执行一样”。而volatile关键词能够禁止指令重排序。&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;在jdk1.5之前的版本，volatile并没有禁止指令重排序的作用，所以即使把变量声明为volatile也会存在volatile变量前后的代码重排序的情况，这也是在jdk1.5之前不能使用双成例检查来实现单例的原因。&lt;/p&gt;
-
-&lt;h2 id=&quot;volatile的实现&quot;&gt;volatile的实现&lt;/h2&gt;
-
-&lt;p&gt;前面提到内存屏障能够避免cache中存在过期数据以及避免乱序执行，而volatile自身也是通过内存屏障来实现上述的2个特性的。&lt;/p&gt;
-
-&lt;p&gt;内存屏障通常分为几个级别：读写（保证屏障前的读写操作都早于屏障后的读写操作）、读（只保证读操作）以及写（只保证写操作）。不同体系结构的硬件对内存屏障的实现都不一样，比如在x86中内存屏障的指令是：&lt;/p&gt;
-
-&lt;ul&gt;
-  &lt;li&gt;lfence 读操作屏障&lt;/li&gt;
-  &lt;li&gt;sfence 写操作屏障&lt;/li&gt;
-  &lt;li&gt;mfence 读写操作屏障&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;p&gt;而当我们把实际的java字节码反汇编成汇编指令时，可以看到并没有这几个屏障，而是在写入volatile变量之后添加一条&lt;code class=&quot;highlighter-rouge&quot;&gt;lock addl $0, 0 (%esp)&lt;/code&gt;指令。lock指令的作用是可以使当前处理器的cache内容被写入内存，同时使其他处理器的cache失效，这种操作相当于将本线程的工作内存的内容同步到主内存，也就保证了可见性。而在指令重排序的角度，由于lock指令之前的操作的结果都同步到了内存，也就相当于lock之前的操作都已经完成，这样就相当于“屏障后边的操作无法穿越到屏障前面”的效果。&lt;/p&gt;
-
-&lt;h3 id=&quot;lock实际的作用&quot;&gt;lock实际的作用&lt;/h3&gt;
-
-&lt;p&gt;可以看到，lock实际上具备了内存屏障的语义，那lock具体的作用是什么呢。lock是一个指令前缀，在它后面的指令会保证原子执行。其实现方式就是在指令执行期间设置处理器的&lt;code class=&quot;highlighter-rouge&quot;&gt;LOCK#&lt;/code&gt;信号，这样就能确保处理器能够互斥的操作内存（通过锁定总线来实现），当指令执行完毕之后&lt;code class=&quot;highlighter-rouge&quot;&gt;LOCK#信号&lt;/code&gt;会自动取消。从intel奔腾Pro处理器开始，当要锁定的内存地址已经被加载到cache时，会直接锁定对应的cache而不是设置&lt;code class=&quot;highlighter-rouge&quot;&gt;LOCK#信号&lt;/code&gt;。&lt;/p&gt;
-
-&lt;p&gt;也就是说，volatile的实现中通过lock前缀+一条空的指令来锁定cache，实现了可见性和禁止重排序的功能。至于为什么要用&lt;code class=&quot;highlighter-rouge&quot;&gt;addl $0, 0 (%esp)&lt;/code&gt;配合lock前缀是因为lock前缀只支持内存操作类的指令，所以不能直接用lock前缀加空指令nop。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry></feed>
+&lt;p&gt;大部分内容参考了&lt;a href=&quot;https://blog.csdn.net/ITer_ZC/category_9263360.html&quot;&gt;iter_zc的博客&lt;/a&gt;，在此表示感谢。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry></feed>

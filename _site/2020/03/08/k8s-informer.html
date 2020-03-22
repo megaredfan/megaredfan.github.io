@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>k8s client-go informer机制简介 | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="k8s client-go informer机制简介" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="前言" />
+<meta property="og:description" content="前言" />
+<link rel="canonical" href="http://localhost:4000/2020/03/08/k8s-informer.html" />
+<meta property="og:url" content="http://localhost:4000/2020/03/08/k8s-informer.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-03-08T00:00:00+08:00" />
+<script type="application/ld+json">
+{"mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2020/03/08/k8s-informer.html"},"url":"http://localhost:4000/2020/03/08/k8s-informer.html","headline":"k8s client-go informer机制简介","dateModified":"2020-03-08T00:00:00+08:00","datePublished":"2020-03-08T00:00:00+08:00","description":"前言","@type":"BlogPosting","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">k8s client-go informer机制简介</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-03-08T00:00:00+08:00" itemprop="datePublished">Mar 8, 2020
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="前言">前言</h2>
+
+<p><code class="highlighter-rouge">client-go</code> 是k8s提供的用于和k8s集群交互的sdk，根据k8s集群版本不同分为两个维护分支：<code class="highlighter-rouge">v0.x.y</code>版本（对应高于或等于0.17.0版本的k8s集群）和<code class="highlighter-rouge">kubernetes-1.x.y</code>版本（对应低于0.17.0版本的k8s集群）。其主要功能包括以下几个部分：</p>
+
+<ul>
+  <li><code class="highlighter-rouge">kubernetes</code> 与k8s api通信</li>
+  <li><code class="highlighter-rouge">discovery</code> 服务发现相关功能</li>
+  <li><code class="highlighter-rouge">dynamic</code> 构造并向k8s api发送动态请求</li>
+  <li><code class="highlighter-rouge">plugin/pkg/client/auth</code> 鉴权相关</li>
+  <li><code class="highlighter-rouge">transport</code> 建立连接相关</li>
+  <li><code class="highlighter-rouge">tools/cache</code> 客户端缓存的实现，主要在编写controller时用到，本文的介绍重点</li>
+</ul>
+
+<p>由于client-go根据k8s服务端版本的不同区分了两个主要版本，具体安装时需要根据实际情况进行区分，具体安装方式可以参考这个<a href="https://github.com/kubernetes/client-go/blob/master/INSTALL.md">链接</a>。</p>
+
+<h2 id="k8s中的controller">k8s中的controller</h2>
+
+<p>controller在k8s中是一个重要的概念，一个controller主要负责追踪某个（或多个）资源的状态，并努力使其追踪的资源的状态达到预期的值。controller内部的逻辑主体是一个无限循环，称为“控制循环”。控制循环的大致流程如下：</p>
+
+<ol>
+  <li>循环开始</li>
+  <li>获取目标资源的当前状态和预期状态</li>
+  <li>如果当前状态和预期状态有差异，尝试通过各种手段使当前状态向预期状态靠拢</li>
+</ol>
+
+<p>当controller发现资源的当前状态和预期状态不同时，它可以直接操作资源使其状态发生变化，但是实际中更常见的做法是向k8s api server发送请求，触发其他事件来使资源发生变化。后者更值得考虑的原因在于，一个controller不应该完成许多工作，因为操作可能会失败，而复杂的控制循环则会使系统复杂度上升，难以维护。举个例子：k8s中的job controller，当它发现需要创建新的job实例时，并不会直接创建新的pod，而是向api server发送创建pod的请求，随后。。。</p>
+
+<h2 id="informer">informer</h2>
+
+<p>一个controller的逻辑主体就是在循环中进行”获取状态 -&gt; 进行处理”的处理，所以client-go提供了从k8s api server获取资源状态的支持，也称为informer。</p>
+
+<p>informer指的是client-go/tools/cache包下的逻辑的代称，它的主要功能就是是帮助controller与k8s api server交互，主要包括获取资源对象的信息以及根据资源对象的变更事件触发自定义的回调。它实际上包含几个组件：</p>
+
+<ul>
+  <li>
+    <p>reflector: reflector主要负责监听（watch）具体的资源类型，而watch具体是通过<code class="highlighter-rouge">ListAndWatch</code>实现。被监听的资源不限于内置的类型，也可以是自定义的资源类型。当reflector通过watch api接收到有新的资源实例被创建的通知时，它会主动通过list api获取到新的资源实例，然后将其放入到<code class="highlighter-rouge">Delta Fifo</code>队列中。</p>
+  </li>
+  <li>
+    <p>informer: informer主要的工作是循环地从<code class="highlighter-rouge">Delta Fifo</code>队列中取出对象，随后通过回调传递给controller，以及交给indexer缓存下来。</p>
+  </li>
+  <li>
+    <p>indexer: indexer主要提供索引的功能，而通常对象的索引是根据对象的label创建的。indexer通过线程安全的结构来存储对象，同时cache包下定义了默认的根据对象label生成索引的函数<code class="highlighter-rouge">MetaNamespaceKeyFunc</code>，具体格式为<code class="highlighter-rouge">&lt;namespace&gt;/&lt;name&gt;</code>。</p>
+  </li>
+</ul>
+
+<h2 id="controller中使用informer的场景">controller中使用informer的场景</h2>
+
+<p>下图是controller在实际中通过client-go与k8s api server交互的示意图：
+<img src="/img/client-go-controller-interaction.jpeg" alt="img" /></p>
+
+<p>从示意图中我们可以看出client-go主要提供的两个机制：第6步的事件注册和触发机制以及第9步的根据key获取对象。同时我们可以看到，在controller中实际有两个reference：informer reference和index reference，它们分别对应前面提到的两个功能。</p>
+
+<p>而informer内部的流程主要包括几个关键点：</p>
+
+<ol>
+  <li>reflector 通过list &amp; watch 从api server获取资源的信息，其中初始化时通过list获取最新信息，随后依赖watch监听资源变化，同时伴随可配置的定时resync机制。</li>
+  <li>reflector 获取到的资源变更事件都通过<code class="highlighter-rouge">Delta Fifo</code>队列传递到informer</li>
+  <li>informer 从队列中获取到事件及对应的对象时，会触发对应的controller回调并将对象传递到indexer进行索引和缓存。</li>
+  <li>controller 获取对象时，会直接从indexer返回缓存，提高性能</li>
+  <li>对象在controller内部传递时也通过key传递，而不是直接传递对象本身，在实际处理时才从indexer获取最新状态的对象</li>
+</ol>
+
+<p>另外示意图中的几个组件也需要介绍一下：</p>
+
+<ul>
+  <li>
+    <p>Resource Event Handlers: controller注册的事件回调函数，informer会在触发这些回调时将对应的资源对象也传递给controller，推荐的做法是根据对象获取其对应的key，然后将key放入work queue中（而不是直接把对象放进queue），随后再由其他组件处理。</p>
+  </li>
+  <li>
+    <p>Work queue: 用于存放在事件回调中收到的对象的key，通过队列来解耦对象的接受和处理。</p>
+  </li>
+  <li>
+    <p>Process Item: 实际处理从队列中获取的对象的逻辑，在做实际操作前往往需要从队列中获得的key从indexer reference获取资源对象。</p>
+  </li>
+</ul>
+
+  </div><a class="u-url" href="/2020/03/08/k8s-informer.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

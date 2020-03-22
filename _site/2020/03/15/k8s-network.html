@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>k8s网络模型 | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="k8s网络模型" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="k8s对网络连通性的约定" />
+<meta property="og:description" content="k8s对网络连通性的约定" />
+<link rel="canonical" href="http://localhost:4000/2020/03/15/k8s-network.html" />
+<meta property="og:url" content="http://localhost:4000/2020/03/15/k8s-network.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-03-15T00:00:00+08:00" />
+<script type="application/ld+json">
+{"mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2020/03/15/k8s-network.html"},"url":"http://localhost:4000/2020/03/15/k8s-network.html","headline":"k8s网络模型","dateModified":"2020-03-15T00:00:00+08:00","datePublished":"2020-03-15T00:00:00+08:00","description":"k8s对网络连通性的约定","@type":"BlogPosting","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">k8s网络模型</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-03-15T00:00:00+08:00" itemprop="datePublished">Mar 15, 2020
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="k8s对网络连通性的约定">k8s对网络连通性的约定</h2>
+
+<ul>
+  <li>所有的Pod之间可以在不使用NAT网络地址转换的情况下相互通信</li>
+  <li>所有的Nodes之间可以在不使用NAT网络地址转换的情况下相互通信</li>
+  <li>每个Pod自己看到的自己的ip和其他Pod看到的一致</li>
+</ul>
+
+<h3 id="同一个pod下的容器是如何通信的">同一个pod下的容器是如何通信的</h3>
+
+<p>每个pod拥有独立的ip，而同一个pod下的多个容器则共享用一个网络namespace，它们之间的通信可以直接使用localhost。而这个网络namespace的初始化是在pause容器（infra容器）当中初始化的，同一个pod下的其他容器都通过<code class="highlighter-rouge">–net=container:NAMEorID</code>的形式加入pause容器的网络namespace。</p>
+
+<h4 id="network-namespace">network namespace</h4>
+
+<p>网络namespace是linux中提供网络资源隔离的机制，其包括网络设备、IP协议栈（IPv4和IPv6）、IP路由表、防火墙规则等等。linux同时也提供了veth的机制，使得不同的namespace之间也可以进行数据传输。</p>
+
+<h3 id="同一台node上的pod之间是如何通信的">同一台node上的pod之间是如何通信的</h3>
+
+<p>默认情况下，容器的网络模式为bridge模式，即在宿主机上创建名为”docker0”的网桥，每个启动的pod都将自己的eth0网卡通过veth设备连接到宿主机的docker0网桥上。也就是说，对于每个pod来说，它的eth0网卡都是一个veth pair的一端，而另一端则连接在宿主机的docker0网桥上。</p>
+
+<p>当一个pod向同一个node上的另一个pod发送数据时，数据包会通过自身的eth0网卡传递到veth pair的另一端，也就是宿主机的docker0网桥上。网桥在收到数据包时，则会根据数据包的目标MAC地址进行查询，确认目标是否是连接在自身的其他pod。当网桥发现了目标pod时，网桥就会把数据包转发到连接在自身的目标pod的veth pair，然后这些数据就会出现在目标pod的eth0网卡上了。具体示意图如下：
+<img src="/img/podonnode.png" alt="img" /></p>
+
+<h4 id="veth-和-bridge">veth 和 bridge</h4>
+
+<p>veth是linux系统中提供的一种在不同网络namespace之间通信的机制。当创建一个veth设备时，系统会返回两个互相连通的端点，称为veth pair。从任意一端发送的数据会被立刻传输到另一端上。</p>
+
+<p>当一个veth pair连接到网桥上时，它就会变为网桥的一个“端口”，从端口传入的数据会由网桥处理，而网桥会判断数据包的转发或者丢弃，然后将数据包发送到某个端口上。</p>
+
+<p>当docker0网桥被创建时，同时还会在系统的路由表中添加路由信息，指定将目标为该宿主机上的pod的数据包交给网桥处理。这样通过IP向宿主机上的pod发送数据时，数据就会交给网桥处理并转发到指定pod了。</p>
+
+<h4 id="node上的进程到pod是如何通信的">node上的进程到pod是如何通信的</h4>
+
+<p>根据前面提到的内容，node上的其他进程（比如agent）也可以通过ip向pod发送数据时，数据包也会先到达网桥，然后由网桥转发到对应的pod。</p>
+
+<h3 id="不同node上的pod之间是如何通信的">不同node上的pod之间是如何通信的</h3>
+
+<p>既然网桥可以处理同一宿主机上的不同pod，那么把所有node上的所有pod都连接到同一个网桥上就可以实现互相访问了。或者其实不一定要网桥，只要能够让宿主机直到如何转发pod发送的数据包就可以了，宿主机通过某种机制再转发到实际的pod就可以了。k8s下许多网络方案都是在这个思路下进行的。</p>
+
+<h2 id="flannel">flannel</h2>
+
+<p>flannel是coreos提供的跨宿主机的容器网络方案的框架，而flannel目前提供三种后端实现：UDP、VXLAN和host gw。</p>
+
+<p>flannel的工作原理就是在每台宿主机上部署一个agent进程（称为flanneld），flanneld负责在宿主机上配置各种路由信息，来协助宿主机判断数据包的转发目标。每台宿主机都由flanneld划分一个子网，具体的配置信息都存储在etcd中。子网划分的目的在于将同一宿主机上的pod都划给同一个子网，那么数据路由就可以以node为粒度，pod跨node通信时就可以先转发到node，再由node转发到pod。</p>
+
+<h3 id="udp模式">UDP模式</h3>
+
+<p>UDP模式是最初的实现，但因为其性能等因素目前已经不建议采用了，但是却是最简单直观的方案。</p>
+
+<p>当node1上的pod1根据ip向node2上的pod2上发送数据时，会发生以下的事情：</p>
+
+<ol>
+  <li>数据会首先出现在node1的docker0网桥上</li>
+  <li>由于node1的docker0并不处理发到pod2的数据，所以数据包会按照node1上配置的路由信息进行处理</li>
+  <li>flanneld会在node1上增加额外的路由信息，指定将发往pod2所在网段的数据转发到flannel0的设备上</li>
+  <li>flannel0实际上是一个TUN设备（Tunnel设备），它会将收到的数据包传递到flanneld进程</li>
+  <li>flanneld收到数据包后，发现是发给pod2的，于是根据其维护的路由信息将数据包转发到node2上的flanneld进程</li>
+  <li>node2上的flanneld进程收到数据包之后，再将数据发送到node2上的flannel0设备上</li>
+  <li>node2上的flannel0收到数据之后，会根据数据包的目标地址转发到docker0网桥上</li>
+  <li>docker0网桥收到数据后，将其转发到pod2的eth0上，数据包的传递就完成了</li>
+</ol>
+
+<p><img src="/img/flannel_udp.png" alt="flannel udp" />
+之所以叫UDP模式，是因为第5步中flanneld之间是通过UDP通信的，每个flanneld都监听指定端口（8285），而发送时则将数据发送到目标node的指定端口即可。这里使用UDP的原因，大概是因为网络层本来就不保证传输的可靠性，使用UDP更加简单直接，节省资源。</p>
+
+<p><strong>TUN设备</strong></p>
+
+<p>在linux中，TUN设备是一种工作在三层（Network Layer）的虚拟网络设备。TUN设备的功能就是在操作系统内核和用户应用程序之间传递IP包。</p>
+
+<h3 id="vxlan">VXLAN</h3>
+
+<p>VXLAN 即Virtual Extensible LAN（虚拟可扩展局域网），是linux内核本身就支持的一种网络虚似化技术。所以说，VXLAN可以完全在内核态实现上述UDP模式封装和解封装的工作，从而通过与前面相似的“隧道”机制，构建出覆盖网络（Overlay Network）。</p>
+
+<p>VXLAN的思路是在现有的三层（网络层）网络上增加一层虚拟的二层（数据链路层）网络，连接到这个虚拟的二层网络上的主机都可以像同一个局域网内的主机一样互相通信。为了让不同主机在这个虚拟的网络上连通，VXLAN在宿主机上创建了一种VTEP（VXLAN Tunnel Endpoint）设备。VTEP的作用实际上和UDP模式中的flanneld进程类似，都是将数据包进行封装和拆封。但是VTEP封装的对象是一个数据帧（对应数据链路层），整个逻辑都可以在内核态完成。</p>
+
+<p>为了组成虚拟的局域网，发送端的VTEP设备需要将原始的IP数据包封装成一个二层网络的数据帧。而一个数据帧则需要知道目标VTEP设备的MAC地址，这里的MAC地址则由flanneld进程维护，VTEP能够顺利地拿到目标MAC地址，并组装一个数据帧。后边的过程就跟UDP模式非常类似了，随后这个数据帧会被添加一个VXLAN header标识，表明这是一个VXLAN数据帧，接收端在看到VXLAN header标识之后就能够判断应该将数据交给VTEP设备处理。随后这个携带了VXLAN header的数据帧就会被通过UDP发送到目标node上，同样，目标node的地址等信息也由flanneld维护。</p>
+
+<h3 id="host-gw模式">host gw模式</h3>
+
+<p>host gw模式的工作原理就比较简单了，它不需要额外的手段将数据包封装后再转发，而是通过在路由信息中指定每个子网的下一跳为对应宿主机的ip。比如某个pod2的ip是10.244.1.3，其所在的宿主机node2的ip为10.168.0.3，对应的子网为10.244.1.0/24; 那么host gw模式下flannel会在每台宿主机上都添加这样一条路由规则：</p>
+
+<p><code class="highlighter-rouge">
+10.244.1.0/24 via 10.168.0.3 dev eth0
+</code></p>
+
+<p>这条规则表示目的ip地址属于10.244.1.0/24网段的数据包，应该经过本机的eth0设备发出去（即：dev eth0）；并且它下一跳地址（next-hop）是10.168.0.3（即：via 10.168.0.3）。下一跳信息的作用在于当ip数据包从网络层进入链路层封装成帧的时候，eth0设备就会使用下一跳地址对应的MAC地址作为该数据帧的目的MAC地址。这样一来，所有其他pod发往pod1的数据包都会在其所属的宿主机上，通过路由信息发送到pod1对应的宿主机上，宿主机在收到数据包后，就能转发给pod1，这样数据的传输就完成了。host gw模式的工作原理示意图如下：</p>
+
+<p><img src="/img/host_gw.png" alt="img" /></p>
+
+<p>可想而知，所有的子网和宿主机之间的对应关系以及路由信息也有flannel管理，最终保存在etcd中，每个宿主机只要通过api关注etcd的变化，并及时更新路由就可以了。</p>
+
+<p>host gw模式通过ip路由的下一跳来转发ip数据包，不需要额外的数据封装，所以性能也会由于UDP模式和VXVLAN模式。但是这个模式有一个要求，那就是所有宿主机必须本来就是在第二层（数据链路层）互通的。</p>
+
+<h2 id="calico">Calico</h2>
+
+<p>Calico与flannel类似，也是k8s中网络方案的一种实现。其工作原理几乎和flannel的host gw模式一样，但是Calico并不通过etcd和每台宿主机上运行的agent进程来管理路由信息，而是使用了BGP来在整个集群中自动分发路由信息。</p>
+
+<p>Calico主要有以下几个组件组成：</p>
+
+<ul>
+  <li>Felix：运行在每台宿主机上的agent进程，负责维护路由信息等。</li>
+  <li>etcd：数据存储</li>
+  <li>BIRD：BGP client，主要负责分发路由信息，默认每台宿主机上的BIRD都要和其他所有宿主机进行通信</li>
+  <li>BGP Route Reflector：大规模集群下用到的组件，主要用于减少宿主机BIRD之间的通信。通过制定某几个节点作为中心，其他节点则只与中心进行通信。</li>
+</ul>
+
+<p><strong>BGP（边界网关协议）</strong></p>
+
+<p>BGP协议主要用于在大规模网络中实现路由节点信息的同步和共享，具体介绍则可以参考<a href="https://zh.wikipedia.org/wiki/%E8%BE%B9%E7%95%8C%E7%BD%91%E5%85%B3%E5%8D%8F%E8%AE%AE">这个链接</a>。</p>
+
+<p>除了BGP，Calico还有另一个地方与flannel不同，那就是Calico没有使用网桥，而是直接在容器和宿主机之间用veth pair进行连接。Calico的工作原理示意图如下：
+<img src="/img/calico.png" alt="img" /></p>
+
+<p>Calico会针对每个容器都创建一个veth pair用于连接宿主机和容器，从容器发出的数据会直接出现在宿主机的对应veth设备上，最终通过路由信息转到eth0设备然后发送出去；而由于没有网桥，Calico还需要添加额外的路由信息来用于接收传入到容器的数据包。比如node2的container4对应的配置：</p>
+
+<p><code class="highlighter-rouge">
+10.233.2.3 dev cali5863f3 scope link
+</code></p>
+
+<p>这个配置表示发往10.233.2.3的数据都发送到cali5863f3设备上，也就进入了container4。</p>
+
+<h3 id="ipip模式">IPIP模式</h3>
+
+<p>对于flannel中host gw模式下要求宿主机必须在二层连通的限制，Calico也同样有这个限制，所以Calico提供了IPIP模式来解决这个问题。在IPIP模式下，容器发出的数据包会通过一个特殊的设备“tul0”发出。Calico的IPIP模式的工作原理示意图如下：</p>
+
+<p><img src="/img/calico_ipip.png" alt="img" /></p>
+
+<p>这个tunl0设备实际上是一个 IP隧道（IP tunnel）设备。数据包通过这个设备发送时，会在原始数据包的基础上在封装一个IP包头，同时将目标地址设置为原始ip数据包的下一跳地址。这样从容器到宿主机的数据包就被封装成了一个从宿主机到宿主机的数据包，也就可以通过宿主机之间的转发顺利到达目标宿主机了。而目标宿主机收到数据包后会先进行拆封，再将原始的数据包通过veth设备发送到目标容器。</p>
+
+<p>很显然，当Calico开启IPIP模式时，也会有因为封装和拆封导致的性能损耗，所以实际场景下推荐尽量让所有宿主机都位于同一子网下。</p>
+
+<h2 id="k8s-cni插件">k8s CNI插件</h2>
+
+<p>k8s中对于网络容器的操作主要通过CNI插件实现。k8s中通过CNI插件维护一个名为“cni0”的网桥来代替docker0网桥。cni0的作用就是接管宿主机下所有pod的网络。CNI的工作原理就是k8s在infra容器（pause容器）启动时，通过插件来初始化容器的网络栈。</p>
+
+<h3 id="cni插件的部署">CNI插件的部署</h3>
+
+<p>在部署k8s的过程中，有一个步骤是安装kubernetes-cni包，它的目的就是在宿主机上安装CNI插件所需的基础可执行文件，包括bridge、dhcp、portmap等等。这些 CNI 的基础可执行文件，按照功能可以分为三类：</p>
+
+<ol>
+  <li>第一类，叫作Main插件，它是用来创建具体网络设备的二进制文件</li>
+  <li>第二类，叫作 IPAM（IP Address Management）插件，它是负责分配 IP 地址的二进制文件</li>
+  <li>第三类，是由 CNI 社区维护的内置 CNI 插件。比如：flannel，就是专门为 Flannel 项目提供的 CNI 插件；tuning，是一个通过 sysctl 调整网络设备参数的二进制文件；portmap，是一个通过 iptables 配置端口映射的二进制文件；bandwidth，是一个使用 Token Bucket Filter (TBF) 来进行限流的二进制文件。</li>
+</ol>
+
+<h3 id="cni的实现">CNI的实现</h3>
+
+<p>要实现一个k8s下的容器网络方案，主要的工作内容分为两个部分：</p>
+
+<ol>
+  <li>实现网络方案本身，比如对应flannel来说，主要指实现flanneld进程的逻辑，比如创建和配置网络设备和路由信息等等。</li>
+  <li>实现对应的CNI插件，这部分主要指配置 Infra 容器里面的网络栈，并把它连接在 CNI 网桥上。</li>
+</ol>
+
+<h3 id="cni的工作流程">CNI的工作流程</h3>
+
+<p>当k8s在处理容器网络相关的逻辑时，主要工作都通过CRI（Container Runtime Interface，容器运行时接口）来完成，CRI对于docker来说，就是dockershim。</p>
+
+<p>dockershim在初始化网络配置时，会宿主机的cni配置目录下（/etc/cni/net.d) 找到对应第一个配置文件，然后加载其内容并执行。 在执行插件前，dockershim会初始化一系列CNI插件的参数，这些参数主要分为两部分：</p>
+
+<ol>
+  <li>CNI环境变量，其中包括CNI_COMMAND。CNI_COMMAND的取值有ADD和DEL，分别表示将容器添加到CNI网络中和将容器从CNI网络中移除。这两个操作也是CNI插件要实现的两个方法，对于网桥类型的CNI插件来说，这两个操作意味着把容器以veth pair的方式“插”到 CNI 网桥上，或者从网桥上“拔”掉。</li>
+  <li>CNI配置文件里指定的默认插件的配置信息。dockershim会以JSON数据的格式，通过标准输入（stdin）的方式传递给CNI插件。</li>
+</ol>
+
+<p>值得注意的是，k8s目前不支持多个CNI插件混用。如果在CNI配置目录（/etc/cni/net.d）里放置了多个CNI配置文件的话，dockershim 只会加载按字母顺序排序的第一个插件。但另一方面，CNI允许在一个CNI配置文件里通过plugins字段定义多个插件进行协作，比如flannel的配置文件中就指定了flannel和portmap两个插件。</p>
+
+  </div><a class="u-url" href="/2020/03/15/k8s-network.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
