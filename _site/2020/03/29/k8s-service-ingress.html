@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>k8s networkpolicy、service与ingress | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="k8s networkpolicy、service与ingress" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="NetworkPolicy" />
+<meta property="og:description" content="NetworkPolicy" />
+<link rel="canonical" href="http://localhost:4000/2020/03/29/k8s-service-ingress.html" />
+<meta property="og:url" content="http://localhost:4000/2020/03/29/k8s-service-ingress.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-03-29T00:00:00+08:00" />
+<script type="application/ld+json">
+{"description":"NetworkPolicy","@type":"BlogPosting","url":"http://localhost:4000/2020/03/29/k8s-service-ingress.html","headline":"k8s networkpolicy、service与ingress","dateModified":"2020-03-29T00:00:00+08:00","datePublished":"2020-03-29T00:00:00+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2020/03/29/k8s-service-ingress.html"},"@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">k8s networkpolicy、service与ingress</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-03-29T00:00:00+08:00" itemprop="datePublished">Mar 29, 2020
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="networkpolicy">NetworkPolicy</h2>
+
+<p>k8s默认情况下，所有pod都是连通的。如果有隔离的需求，可以通过设置NetworkPolicy来实现。NetworkPolicy在namespace范围下工作，它可以根据podSelector选中某些pod。而被NetworkPolicy选中的pod就进入了“默认隔离”的状态，只有符合NetworkPolicy中规则的流量才会被放行。值得注意的是NetworkPolicy需要对应的CNI插件支持，也就是说NetworkPolicy只提供了隔离规则的声明，而实际根据声明进行隔离操作的则是具体的网络实现方案，比如Calico、Weave、kube-router等，但是Flannel并不支持。</p>
+
+<h3 id="配置的格式">配置的格式</h3>
+
+<p>一个完整的NetworkPolicy的定义如下所示：</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">networking.k8s.io/v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">NetworkPolicy</span>
+<span class="na">metadata</span><span class="pi">:</span> 
+    <span class="na">name</span><span class="pi">:</span> <span class="s">test-network-policy</span>
+    <span class="na">namespace</span><span class="pi">:</span> <span class="s">default</span>
+<span class="na">spec</span><span class="pi">:</span>
+    <span class="na">podSelector</span><span class="pi">:</span>
+        <span class="na">matchLabels</span><span class="pi">:</span>
+            <span class="na">role</span><span class="pi">:</span> <span class="s">db</span>
+    <span class="na">policyTypes</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="s">Ingress</span>
+    <span class="pi">-</span> <span class="s">Egress</span>
+    <span class="na">ingress</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">from</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">ipBlock</span><span class="pi">:</span>
+            <span class="na">cdir</span><span class="pi">:</span> <span class="s">172.17.0.0/16</span>
+            <span class="na">expect</span><span class="pi">:</span>
+                <span class="s">172.17.1.0/24</span>
+        <span class="pi">-</span> <span class="na">namespaceSelector</span><span class="pi">:</span>
+            <span class="na">matchLabels</span><span class="pi">:</span>
+                <span class="na">project</span><span class="pi">:</span> <span class="s">myproject</span>
+        <span class="pi">-</span> <span class="na">podSelector</span><span class="pi">:</span>
+            <span class="na">matchLabels</span><span class="pi">:</span>
+                <span class="na">role</span><span class="pi">:</span> <span class="s">frontend</span>
+        <span class="na">ports</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">protocol</span><span class="pi">:</span> <span class="s">TCP</span>
+          <span class="na">port</span><span class="pi">:</span> <span class="s">6379</span>
+    <span class="na">egress</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">to</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">ipBlock</span><span class="pi">:</span>
+            <span class="na">cidr</span><span class="pi">:</span> <span class="s">10.0.0.0/24</span>
+        <span class="na">ports</span><span class="pi">:</span>
+        <span class="pi">-</span> <span class="na">protocol</span><span class="pi">:</span> <span class="s">TCP</span>
+          <span class="na">port</span><span class="pi">:</span> <span class="s">5978</span>
+</code></pre></div></div>
+
+<p>首先spec中的podSelector字段表示这个配置只影响default namespace下的带role=db标签的pod。policyTypes字段中声明了这个配置既影响流入（Ingress）的流量也影响（Egress）流出的流量，意思是被选中的pod的流入流量和流出流量都变成了默认拒绝，只有符合下面规则的流量才会被放行。如果没有声明policyTypes，则默认只影响流入的流量；如果没有声明policyTypes但是规则中声明了egress规则，则也会影响流出的流量。</p>
+
+<p>规则定义方面，示例配置中声明了目标端口是6379的TCP协议的流入流量，同时满足以下任意条件的流量才会被放行：</p>
+
+<ol>
+  <li>源地址属于172.17.0.0/16网段但不属于172.17.1.0/24</li>
+  <li>来源pod的namespace中有project=myproject标签</li>
+  <li>来源pod有role=frontend标签</li>
+</ol>
+
+<p>值得注意的是规则声明中from和to部分下的内容以<code class="highlighter-rouge">-</code>开头表示“或”的关系，没有<code class="highlighter-rouge">-</code>开头的规则则表示“与”的关系。</p>
+
+<p>流出规则的作用类似，就不叙述了。</p>
+
+<h3 id="配置的实现">配置的实现</h3>
+
+<p>前面提到了，NetworkPolicy需要配套的网络方案实现，而在具体实现中，所有支持NetworkPolicy的插件都维护着一个NetworkPolicy Controller，通过控制循环的方式来NetworkPolicy对象的变化，然后在宿主机上进行iptables的配置。iptables的规则大概有几条：</p>
+
+<ol>
+  <li>拦截同一台宿主机上通过CNI网桥进行通信的流量</li>
+  <li>拦截跨宿主机通信的流量</li>
+  <li>将拦截的流量转交给NetworkPolicy的规则进行匹配</li>
+  <li>匹配失败的流量则直接拒绝</li>
+</ol>
+
+<h2 id="service">Service</h2>
+
+<p>Service是k8s内置的资源类型，它的作用就是将一组pod通过一个单一的ip和dns记录暴露出去，同时提供负载均衡。</p>
+
+<h3 id="配置格式">配置格式</h3>
+
+<p>一个简单的Service配置如下所示：</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Service</span>
+<span class="na">metadata</span><span class="pi">:</span>
+    <span class="na">name</span><span class="pi">:</span> <span class="s">hostnames</span>
+<span class="na">spec</span><span class="pi">:</span>
+    <span class="na">selector</span><span class="pi">:</span>
+        <span class="na">app</span><span class="pi">:</span> <span class="s">hostnames</span>
+    <span class="na">ports</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">default</span>
+      <span class="na">protocol</span><span class="pi">:</span> <span class="s">TCP</span>
+      <span class="na">port</span><span class="pi">:</span> <span class="s">80</span>
+      <span class="na">targetPort</span><span class="pi">:</span> <span class="s">9376</span>
+</code></pre></div></div>
+
+<p>示例中的Service表示它只代理携带了app=hostnames标签的pod，同时这个Service对外的端口是80，被代理的pod的端口则是9376。被代理的pod也被称为Endpoint，只有处于Running状态同时readinessProbe检查通过的Pod才会被Service纳入Endpoint列表中，而且当一个pod出现问题时，k8s会将其自动摘掉。当成功创建一个Service时，k8s会为其分配一个vip（也称为cluster ip），通过Service的vip就能顺利访问其代理的后端pod了。</p>
+
+<p>此外，k8s还会为Service的vip创建一条DNS记录，格式为..svc.cluster.local，当访问其对应的DNS记录时，解析到的实际是Service对应的vip地址。然而对于制定了clusterIP=None的Headless Service来说，其DNS对应的记录解析到的结果是其代理的pod的ip的集合。对于ClusterIP模式的Service来说，它代理的pod会自动分配一个DNS记录，格式是..pod.cluster.local，这条记录则指向pod的ip地址。</p>
+
+<p>除了通过selector指定pod以外，k8s还支持显示指定Service和Endpoint的绑定关系，这需要首先声明一个不带selector字段的Service，比如：</p>
+
+<pre><code class="language-ymal">apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 9376
+</code></pre>
+
+<p>然后再通过声明一个Endpoint类型对象，通过metadata中的name字段把它和Service关联起来：</p>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">apiVersion</span><span class="pi">:</span> <span class="s">v1</span>
+<span class="na">kind</span><span class="pi">:</span> <span class="s">Endpoints</span>
+<span class="na">metadata</span><span class="pi">:</span>
+  <span class="na">name</span><span class="pi">:</span> <span class="s">my-service</span>
+<span class="na">subsets</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">addresses</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="na">ip</span><span class="pi">:</span> <span class="s">192.0.2.42</span>
+    <span class="na">ports</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="s">9376</span>
+</code></pre></div></div>
+
+<p>这样一来，当我们通过vip访问my-service时，请求就会直接转发到192.0.2.42:9376</p>
+
+<h3 id="具体实现">具体实现</h3>
+
+<p>Service实际上是通过kube-proxy组件加上iptables来实现的。Service提供多种代理模式：用户空间代理、iptables代理以及IPVS代理。</p>
+
+<h4 id="本地进程代理">本地进程代理</h4>
+
+<p>这个模式下，kube-proxy会监听Service和Endpoint的变化，然后在宿主机上启动一个代理端口（随机选择），当pod中发起连接到代理端口的连接时，这个连接会被桥接到Service实际的被代理pod上，在进行负载均衡时，还会参考<code class="highlighter-rouge">SessionAffinity</code>相关的配置。</p>
+
+<p>然后kube-proxy会设置一系列的iptables规则，将发往Service vip的流量转发到代理端口上。</p>
+
+<p>默认情况下，kube-proxy使用round-robin的规则来进行负载均衡。</p>
+
+<h4 id="iptables代理">iptables代理</h4>
+
+<p>这个模式下，kube-proxy会监听Service和Endpoint的变化，然后在宿主机上设置iptables规则，将发往Service vip的流量转发到实际的被代理的pod上，这个过程中会随机选择一个pod。这个模式比起本地代理性能会更高，也更为可靠。</p>
+
+<p>当被选中的pod无法响应时，本次请求就会直接失败；而本地代理模式下，代理进程会检测到失败并将连接切换到新的pod上。当然在这里可以通过pod的readinessProbe来进行pod的健康检查。</p>
+
+<h4 id="ipvs代理">ipvs代理</h4>
+
+<p>这个模式下，kube-proxy会监听Service和Endpoint的变化，然后通过<code class="highlighter-rouge">netlink</code>创建和定期维护ipvs规则。当pod需要访问Service时，ipvs会直接将流量转发到对应的目标pod。ipvs模式比起前两个模式性能更好，同时对大流量的场景支持的也更好（iptables会占用很多宿主机的CPU资源）。除此之外，ipvs模式还支持多种负载均衡策略比如round-robin、least connection、destination hash、source hash等等。</p>
+
+<p>值得注意的是要使用ipvs模式需要宿主机支持ipvs功能，如果设置了ipvs模式但是宿主机不支持ipvs功能，则会fallback到iptables代理模式。</p>
+
+  </div><a class="u-url" href="/2020/03/29/k8s-service-ingress.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

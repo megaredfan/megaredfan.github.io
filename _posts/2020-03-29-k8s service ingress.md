@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 'k8s networkpolicy、service与ingress'
+title: 'k8s NetworkPolicy和Service'
 ---
 
 ## NetworkPolicy
@@ -94,7 +94,7 @@ spec:
 
 示例中的Service表示它只代理携带了app=hostnames标签的pod，同时这个Service对外的端口是80，被代理的pod的端口则是9376。被代理的pod也被称为Endpoint，只有处于Running状态同时readinessProbe检查通过的Pod才会被Service纳入Endpoint列表中，而且当一个pod出现问题时，k8s会将其自动摘掉。当成功创建一个Service时，k8s会为其分配一个vip（也称为cluster ip），通过Service的vip就能顺利访问其代理的后端pod了。
 
-此外，k8s还会为Service的vip创建一条DNS记录，格式为
+此外，k8s还会为Service的vip创建一条DNS记录，格式为..svc.cluster.local，当访问其对应的DNS记录时，解析到的实际是Service对应的vip地址。然而对于制定了clusterIP=None的Headless Service来说，其DNS对应的记录解析到的结果是其代理的pod的ip的集合。对于ClusterIP模式的Service来说，它代理的pod会自动分配一个DNS记录，格式是..pod.cluster.local，这条记录则指向pod的ip地址。
 
 除了通过selector指定pod以外，k8s还支持显示指定Service和Endpoint的绑定关系，这需要首先声明一个不带selector字段的Service，比如：
 
@@ -123,8 +123,29 @@ subsets:
     ports:
       - port: 9376
 ```
-这样一来，当我们通过vip访问my-service的
-Endpoint的声明中，ip不能为回环地址，也不能指定为其他Service的vip。
 
+这样一来，当我们通过vip访问my-service时，请求就会直接转发到192.0.2.42:9376
 
-## Ingress
+### 具体实现
+
+Service实际上是通过kube-proxy组件加上iptables来实现的。Service提供多种代理模式：用户空间代理、iptables代理以及IPVS代理。
+
+#### 本地进程代理
+
+这个模式下，kube-proxy会监听Service和Endpoint的变化，然后在宿主机上启动一个代理端口（随机选择），当pod中发起连接到代理端口的连接时，这个连接会被桥接到Service实际的被代理pod上，在进行负载均衡时，还会参考`SessionAffinity`相关的配置。
+
+然后kube-proxy会设置一系列的iptables规则，将发往Service vip的流量转发到代理端口上。
+
+默认情况下，kube-proxy使用round-robin的规则来进行负载均衡。
+
+#### iptables代理
+
+这个模式下，kube-proxy会监听Service和Endpoint的变化，然后在宿主机上设置iptables规则，将发往Service vip的流量转发到实际的被代理的pod上，这个过程中会随机选择一个pod。这个模式比起本地代理性能会更高，也更为可靠。
+
+当被选中的pod无法响应时，本次请求就会直接失败；而本地代理模式下，代理进程会检测到失败并将连接切换到新的pod上。当然在这里可以通过pod的readinessProbe来进行pod的健康检查。
+
+#### ipvs代理
+
+这个模式下，kube-proxy会监听Service和Endpoint的变化，然后通过`netlink`创建和定期维护ipvs规则。当pod需要访问Service时，ipvs会直接将流量转发到对应的目标pod。ipvs模式比起前两个模式性能更好，同时对大流量的场景支持的也更好（iptables会占用很多宿主机的CPU资源）。除此之外，ipvs模式还支持多种负载均衡策略比如round-robin、least connection、destination hash、source hash等等。
+
+值得注意的是要使用ipvs模式需要宿主机支持ipvs功能，如果设置了ipvs模式但是宿主机不支持ipvs功能，则会fallback到iptables代理模式。

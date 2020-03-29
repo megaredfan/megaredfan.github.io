@@ -1,4 +1,149 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-03-22T19:15:50+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">k8s网络模型</title><link href="http://localhost:4000/2020/03/15/k8s-network.html" rel="alternate" type="text/html" title="k8s网络模型" /><published>2020-03-15T00:00:00+08:00</published><updated>2020-03-15T00:00:00+08:00</updated><id>http://localhost:4000/2020/03/15/k8s%20network</id><content type="html" xml:base="http://localhost:4000/2020/03/15/k8s-network.html">&lt;h2 id=&quot;k8s对网络连通性的约定&quot;&gt;k8s对网络连通性的约定&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-03-29T19:44:10+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">k8s networkpolicy、service与ingress</title><link href="http://localhost:4000/2020/03/29/k8s-service-ingress.html" rel="alternate" type="text/html" title="k8s networkpolicy、service与ingress" /><published>2020-03-29T00:00:00+08:00</published><updated>2020-03-29T00:00:00+08:00</updated><id>http://localhost:4000/2020/03/29/k8s%20service%20ingress</id><content type="html" xml:base="http://localhost:4000/2020/03/29/k8s-service-ingress.html">&lt;h2 id=&quot;networkpolicy&quot;&gt;NetworkPolicy&lt;/h2&gt;
+
+&lt;p&gt;k8s默认情况下，所有pod都是连通的。如果有隔离的需求，可以通过设置NetworkPolicy来实现。NetworkPolicy在namespace范围下工作，它可以根据podSelector选中某些pod。而被NetworkPolicy选中的pod就进入了“默认隔离”的状态，只有符合NetworkPolicy中规则的流量才会被放行。值得注意的是NetworkPolicy需要对应的CNI插件支持，也就是说NetworkPolicy只提供了隔离规则的声明，而实际根据声明进行隔离操作的则是具体的网络实现方案，比如Calico、Weave、kube-router等，但是Flannel并不支持。&lt;/p&gt;
+
+&lt;h3 id=&quot;配置的格式&quot;&gt;配置的格式&lt;/h3&gt;
+
+&lt;p&gt;一个完整的NetworkPolicy的定义如下所示：&lt;/p&gt;
+
+&lt;div class=&quot;language-yaml highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;na&quot;&gt;apiVersion&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;networking.k8s.io/v1&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;kind&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;NetworkPolicy&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;metadata&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; 
+    &lt;span class=&quot;na&quot;&gt;name&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;test-network-policy&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;namespace&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;default&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;spec&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;podSelector&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+        &lt;span class=&quot;na&quot;&gt;matchLabels&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+            &lt;span class=&quot;na&quot;&gt;role&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;db&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;policyTypes&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;Ingress&lt;/span&gt;
+    &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;Egress&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;ingress&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;from&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+        &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;ipBlock&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+            &lt;span class=&quot;na&quot;&gt;cdir&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;172.17.0.0/16&lt;/span&gt;
+            &lt;span class=&quot;na&quot;&gt;expect&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+                &lt;span class=&quot;s&quot;&gt;172.17.1.0/24&lt;/span&gt;
+        &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;namespaceSelector&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+            &lt;span class=&quot;na&quot;&gt;matchLabels&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+                &lt;span class=&quot;na&quot;&gt;project&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;myproject&lt;/span&gt;
+        &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;podSelector&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+            &lt;span class=&quot;na&quot;&gt;matchLabels&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+                &lt;span class=&quot;na&quot;&gt;role&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;frontend&lt;/span&gt;
+        &lt;span class=&quot;na&quot;&gt;ports&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+        &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;protocol&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;TCP&lt;/span&gt;
+          &lt;span class=&quot;na&quot;&gt;port&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;6379&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;egress&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;to&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+        &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;ipBlock&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+            &lt;span class=&quot;na&quot;&gt;cidr&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;10.0.0.0/24&lt;/span&gt;
+        &lt;span class=&quot;na&quot;&gt;ports&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+        &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;protocol&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;TCP&lt;/span&gt;
+          &lt;span class=&quot;na&quot;&gt;port&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;5978&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;首先spec中的podSelector字段表示这个配置只影响default namespace下的带role=db标签的pod。policyTypes字段中声明了这个配置既影响流入（Ingress）的流量也影响（Egress）流出的流量，意思是被选中的pod的流入流量和流出流量都变成了默认拒绝，只有符合下面规则的流量才会被放行。如果没有声明policyTypes，则默认只影响流入的流量；如果没有声明policyTypes但是规则中声明了egress规则，则也会影响流出的流量。&lt;/p&gt;
+
+&lt;p&gt;规则定义方面，示例配置中声明了目标端口是6379的TCP协议的流入流量，同时满足以下任意条件的流量才会被放行：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;源地址属于172.17.0.0/16网段但不属于172.17.1.0/24&lt;/li&gt;
+  &lt;li&gt;来源pod的namespace中有project=myproject标签&lt;/li&gt;
+  &lt;li&gt;来源pod有role=frontend标签&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;值得注意的是规则声明中from和to部分下的内容以&lt;code class=&quot;highlighter-rouge&quot;&gt;-&lt;/code&gt;开头表示“或”的关系，没有&lt;code class=&quot;highlighter-rouge&quot;&gt;-&lt;/code&gt;开头的规则则表示“与”的关系。&lt;/p&gt;
+
+&lt;p&gt;流出规则的作用类似，就不叙述了。&lt;/p&gt;
+
+&lt;h3 id=&quot;配置的实现&quot;&gt;配置的实现&lt;/h3&gt;
+
+&lt;p&gt;前面提到了，NetworkPolicy需要配套的网络方案实现，而在具体实现中，所有支持NetworkPolicy的插件都维护着一个NetworkPolicy Controller，通过控制循环的方式来NetworkPolicy对象的变化，然后在宿主机上进行iptables的配置。iptables的规则大概有几条：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;拦截同一台宿主机上通过CNI网桥进行通信的流量&lt;/li&gt;
+  &lt;li&gt;拦截跨宿主机通信的流量&lt;/li&gt;
+  &lt;li&gt;将拦截的流量转交给NetworkPolicy的规则进行匹配&lt;/li&gt;
+  &lt;li&gt;匹配失败的流量则直接拒绝&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&quot;service&quot;&gt;Service&lt;/h2&gt;
+
+&lt;p&gt;Service是k8s内置的资源类型，它的作用就是将一组pod通过一个单一的ip和dns记录暴露出去，同时提供负载均衡。&lt;/p&gt;
+
+&lt;h3 id=&quot;配置格式&quot;&gt;配置格式&lt;/h3&gt;
+
+&lt;p&gt;一个简单的Service配置如下所示：&lt;/p&gt;
+
+&lt;div class=&quot;language-yaml highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;na&quot;&gt;apiVersion&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;v1&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;kind&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;Service&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;metadata&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;name&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;hostnames&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;spec&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;selector&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+        &lt;span class=&quot;na&quot;&gt;app&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;hostnames&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;ports&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;name&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;default&lt;/span&gt;
+      &lt;span class=&quot;na&quot;&gt;protocol&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;TCP&lt;/span&gt;
+      &lt;span class=&quot;na&quot;&gt;port&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;80&lt;/span&gt;
+      &lt;span class=&quot;na&quot;&gt;targetPort&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;9376&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;示例中的Service表示它只代理携带了app=hostnames标签的pod，同时这个Service对外的端口是80，被代理的pod的端口则是9376。被代理的pod也被称为Endpoint，只有处于Running状态同时readinessProbe检查通过的Pod才会被Service纳入Endpoint列表中，而且当一个pod出现问题时，k8s会将其自动摘掉。当成功创建一个Service时，k8s会为其分配一个vip（也称为cluster ip），通过Service的vip就能顺利访问其代理的后端pod了。&lt;/p&gt;
+
+&lt;p&gt;此外，k8s还会为Service的vip创建一条DNS记录，格式为..svc.cluster.local，当访问其对应的DNS记录时，解析到的实际是Service对应的vip地址。然而对于制定了clusterIP=None的Headless Service来说，其DNS对应的记录解析到的结果是其代理的pod的ip的集合。对于ClusterIP模式的Service来说，它代理的pod会自动分配一个DNS记录，格式是..pod.cluster.local，这条记录则指向pod的ip地址。&lt;/p&gt;
+
+&lt;p&gt;除了通过selector指定pod以外，k8s还支持显示指定Service和Endpoint的绑定关系，这需要首先声明一个不带selector字段的Service，比如：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&quot;language-ymal&quot;&gt;apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 9376
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;然后再通过声明一个Endpoint类型对象，通过metadata中的name字段把它和Service关联起来：&lt;/p&gt;
+
+&lt;div class=&quot;language-yaml highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;na&quot;&gt;apiVersion&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;v1&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;kind&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;Endpoints&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;metadata&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+  &lt;span class=&quot;na&quot;&gt;name&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;my-service&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;subsets&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+  &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;addresses&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+      &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;ip&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;192.0.2.42&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;ports&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+      &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;port&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;9376&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;这样一来，当我们通过vip访问my-service时，请求就会直接转发到192.0.2.42:9376&lt;/p&gt;
+
+&lt;h3 id=&quot;具体实现&quot;&gt;具体实现&lt;/h3&gt;
+
+&lt;p&gt;Service实际上是通过kube-proxy组件加上iptables来实现的。Service提供多种代理模式：用户空间代理、iptables代理以及IPVS代理。&lt;/p&gt;
+
+&lt;h4 id=&quot;本地进程代理&quot;&gt;本地进程代理&lt;/h4&gt;
+
+&lt;p&gt;这个模式下，kube-proxy会监听Service和Endpoint的变化，然后在宿主机上启动一个代理端口（随机选择），当pod中发起连接到代理端口的连接时，这个连接会被桥接到Service实际的被代理pod上，在进行负载均衡时，还会参考&lt;code class=&quot;highlighter-rouge&quot;&gt;SessionAffinity&lt;/code&gt;相关的配置。&lt;/p&gt;
+
+&lt;p&gt;然后kube-proxy会设置一系列的iptables规则，将发往Service vip的流量转发到代理端口上。&lt;/p&gt;
+
+&lt;p&gt;默认情况下，kube-proxy使用round-robin的规则来进行负载均衡。&lt;/p&gt;
+
+&lt;h4 id=&quot;iptables代理&quot;&gt;iptables代理&lt;/h4&gt;
+
+&lt;p&gt;这个模式下，kube-proxy会监听Service和Endpoint的变化，然后在宿主机上设置iptables规则，将发往Service vip的流量转发到实际的被代理的pod上，这个过程中会随机选择一个pod。这个模式比起本地代理性能会更高，也更为可靠。&lt;/p&gt;
+
+&lt;p&gt;当被选中的pod无法响应时，本次请求就会直接失败；而本地代理模式下，代理进程会检测到失败并将连接切换到新的pod上。当然在这里可以通过pod的readinessProbe来进行pod的健康检查。&lt;/p&gt;
+
+&lt;h4 id=&quot;ipvs代理&quot;&gt;ipvs代理&lt;/h4&gt;
+
+&lt;p&gt;这个模式下，kube-proxy会监听Service和Endpoint的变化，然后通过&lt;code class=&quot;highlighter-rouge&quot;&gt;netlink&lt;/code&gt;创建和定期维护ipvs规则。当pod需要访问Service时，ipvs会直接将流量转发到对应的目标pod。ipvs模式比起前两个模式性能更好，同时对大流量的场景支持的也更好（iptables会占用很多宿主机的CPU资源）。除此之外，ipvs模式还支持多种负载均衡策略比如round-robin、least connection、destination hash、source hash等等。&lt;/p&gt;
+
+&lt;p&gt;值得注意的是要使用ipvs模式需要宿主机支持ipvs功能，如果设置了ipvs模式但是宿主机不支持ipvs功能，则会fallback到iptables代理模式。&lt;/p&gt;</content><author><name></name></author><summary type="html">NetworkPolicy</summary></entry><entry><title type="html">k8s网络模型</title><link href="http://localhost:4000/2020/03/15/k8s-network.html" rel="alternate" type="text/html" title="k8s网络模型" /><published>2020-03-15T00:00:00+08:00</published><updated>2020-03-15T00:00:00+08:00</updated><id>http://localhost:4000/2020/03/15/k8s%20network</id><content type="html" xml:base="http://localhost:4000/2020/03/15/k8s-network.html">&lt;h2 id=&quot;k8s对网络连通性的约定&quot;&gt;k8s对网络连通性的约定&lt;/h2&gt;
 
 &lt;ul&gt;
   &lt;li&gt;所有的Pod之间可以在不使用NAT网络地址转换的情况下相互通信&lt;/li&gt;
@@ -927,69 +1072,4 @@
 
 &lt;p&gt;最初的算法是基于丢包来判断是否发生了拥塞，一旦出现拥塞之后就降低发送速率来避免拥塞。后面有出现了基于RTT判断拥塞的算法，但是这种算法会因为太“君子”而提前减小发送速率（让出带宽），从而可能被共存的其他算法进一步压榨产生公平性问题。微软的CTCP通过维护两个窗口来避免这种公平性问题，一个AIMD的窗口来保证不被其他人压榨，另一个基于延迟的窗口能够保证有带宽时能迅速提高来提高带宽利用率。而BBR则直接采用主动探测的方式来判断拥塞是否发生。&lt;/p&gt;
 
-&lt;p&gt;当出现拥塞之后，通常需要降低发送速率来避免拥塞进一步加剧，而不同算法在这时的处理都不尽相同，最初的算法通过直接降低发送速率到1来简单处理，但是这种方式太过粗暴，后续的其他算法也都做了不同的尝试。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry><entry><title type="html">jvm safepoint</title><link href="http://localhost:4000/2019/11/17/safepoint.html" rel="alternate" type="text/html" title="jvm safepoint" /><published>2019-11-17T00:00:00+08:00</published><updated>2019-11-17T00:00:00+08:00</updated><id>http://localhost:4000/2019/11/17/safepoint</id><content type="html" xml:base="http://localhost:4000/2019/11/17/safepoint.html">&lt;h2 id=&quot;前言&quot;&gt;前言&lt;/h2&gt;
-
-&lt;p&gt;多线程编程是一件很难的事，或者说编写在多线程条件下运行良好的代码很难。java提供了synchronized和volatile关键字，还有Lock类和Atomic相关的类来帮助我们正确的实现并发逻辑，但我在实际工作中仍倾向于尽量避免并发，还有一个偷懒的做法就是需要并发访问的变量总是加上volatile修饰。&lt;/p&gt;
-
-&lt;p&gt;最近遇到了两个并发相关的例子，一个是某个同事编写的利用AtomicInteger类实现的lock-free逻辑出现了bug，由于边界条件没处理好，导致出现死循环的情况；另一个是某个服务由于平时负载比较高，出现了偏向锁撤销耗时过长的问题。&lt;/p&gt;
-
-&lt;p&gt;&lt;strong&gt;偏向锁撤销&lt;/strong&gt;&lt;/p&gt;
-
-&lt;p&gt;偏向锁实际上是jvm对锁的一种优化，它假定对于一个锁，实际上只有一个线程在尝试访问。偏向锁的实现很简单，就是在一个线程访问锁时，将这个锁的持有者直接标记为这个线程，当这个线程再尝试获取锁时，只需要检查这个持有者标记即可。偏向锁的优化在实际并没有多线程竞争的场景下能够有效提高程序的性能，但是当“没有多线程竞争”这个假设不成立，偏向锁就需要额外的逻辑进行撤销，而这个撤销就有可能会带来较长时间的停顿，影响程序的性能。&lt;/p&gt;
-
-&lt;p&gt;为什么说偏向锁撤销可能会导致长时间停顿呢，是因为偏向锁的撤销实际上需要在安全点时进行。偏向锁撤销的需要暂停拥有锁的线程并操作它的栈，所以需要在安全点进行。而程序进入安全点所需的时间是不确定的，具体的原因就跟安全点的具体实现有关。&lt;/p&gt;
-
-&lt;h2 id=&quot;safepoint&quot;&gt;safepoint&lt;/h2&gt;
-
-&lt;p&gt;安全点（以下称safepoint）是jvm中的一个重要的概念，jvm中很多场景都会遇到它，最常见的应该是GC（虽然我前面提到的是偏向锁撤销）。safepoint的含义表示的时程序中的某些固定位置，在这些位置上程序的状态是“确定”的，这时jvm就可以根据程序的状态进行一些特殊的操作，比如：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;gc：gc时需要将不再存活的对象清理掉，所以需要“确定”地知道哪些对象不再存活。gc时还需要扫描每个线程的栈，所以需要“确定”的直到栈中的每个对象的类型（引用还是值）。&lt;/li&gt;
-  &lt;li&gt;偏向锁撤销：这个前面提到了，因为需要暂停线程，同时操作线程的栈。&lt;/li&gt;
-  &lt;li&gt;更新OopMap：oop（ordinary object pointer）是hotspot虚拟机里用于记录对象的元数据的数据结构，它记录了对象内各个偏移量对应的数据的类型。OopMap主要用于实现准确式GC，关于准确式GC的介绍可以参考&lt;a href=&quot;https://www.wikiwand.com/en/Tracing_garbage_collection#/Precise_vs._conservative_and_internal_pointers&quot;&gt;这里&lt;/a&gt;&lt;/li&gt;
-  &lt;li&gt;Code deoptimization/Flushing code cache/Class redefinition/Various debug operation：来自&lt;a href=&quot;http://blog.ragozin.info/2012/10/safepoints-in-hotspot-jvm.html&quot;&gt;这里&lt;/a&gt;&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;h3 id=&quot;safepoint的位置&quot;&gt;safepoint的位置&lt;/h3&gt;
-
-&lt;p&gt;在jvm的运行时管理中，利用safepoint来将整个程序挂起（Stop the World），然后进行一些特殊的操作。而safepoint的思路也很简单：当我们需要执行一些特殊操作（比如gc）时，我们就在程序的某些位置设置一些暂停点，当线程来到这些暂停点时，就将自己挂起。等所有线程都挂起后，我们再进行原定的特殊操作。而safepoint的具体位置通常有以下几个：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;每个字节码命令之后（解释模式）&lt;/li&gt;
-  &lt;li&gt;所有的方法返回之前（JIT模式）&lt;/li&gt;
-  &lt;li&gt;所有的非计数循环的末尾 （JIT模式）&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;只在非计数循环的末尾设置safepoint带来了一个问题：假如程序里有一个非常大的计数循环（比如循环100w次），就可能导致safepoint挂起整个程序的时间变长，因为其他已经挂起的线程都需要等待这个大循环执行结束。&lt;/p&gt;
-
-&lt;p&gt;前面提到safepoint的设置会使所有线程挂起，那么具体的gc或者偏向锁撤销又是由谁来执行的呢，答案就是VM线程。在jstack的输出结果中就可以看到有一个叫做”VMThread”的线程，这个线程就是专门负责在STW的时候处理各种特殊操作。&lt;/p&gt;
-
-&lt;h3 id=&quot;safe-region&quot;&gt;safe region&lt;/h3&gt;
-
-&lt;p&gt;safepoint可以让运行中的线程主动挂起，而其他状态下的线程（比如正在sleep或者正阻塞在一个锁上）则无法主动运行到safepoint。对于这种情况jvm中设置了安全区（safe region）的概念，当线程出于某些状态时，jvm认为这种情况下这个线程不会对jvm heap做出任何修改，因此不会破坏jvm的“确定”的状态，所以这些线程可以认为是安全的（处于安全区）。当处于安全区的线程要从安全区出来的时候，同样需要检查是否应该主动挂起。jvm中设定以下几种状态的线程就是处于safe region：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;处于阻塞或者等待中&lt;/li&gt;
-  &lt;li&gt;正在执行JNI方法&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;所以当线程处于以上几个状态时，我们就认为它们就和达到safepoint一样，可以执行特殊的操作了。为了防止线程从safe region返回后对jvm heap进行更改，当STW时线程在从safe region返回时都会主动挂起。&lt;/p&gt;
-
-&lt;h3 id=&quot;线程挂起的实现&quot;&gt;线程挂起的实现&lt;/h3&gt;
-
-&lt;p&gt;通过在特定的位置设置safepoint，我们可以让程序在需要的时候挂起。当需要STW的时候，safepoint会被激活，每个线程在运行到safepoint时，都会主动检查safepoint的状态，如果safepoint被激活，线程就会进入挂起状态。简单来说，&lt;strong&gt;线程在检查safepoint时会主动访问一个特定的内存页，而当STW时这个内存页设置为不可读，所以每个尝试读这个内存页的线程也就会挂起&lt;/strong&gt;。而这个检查过程是通过JIT编译器主动插入到指令中的。&lt;/p&gt;
-
-&lt;p&gt;而具体来说，线程处于不同状态时，挂起线程的方式也有不同：&lt;/p&gt;
-
-&lt;ol&gt;
-  &lt;li&gt;当线程处于解释执行时，解释器会强制将下一个指令指向检查safepoint的指令&lt;/li&gt;
-  &lt;li&gt;当线程正在执行JNI方法时，VMThread不会等待其返回，而是认为其处于safe region。当它返回时会阻塞直到STW结束&lt;/li&gt;
-  &lt;li&gt;当线程正在执行已经编译好的方法时，编译好的代码里会携带检查safepoint的逻辑，我们将特定的内存页设置为不可读即可&lt;/li&gt;
-  &lt;li&gt;当线程正在阻塞时，VMThread不会等待其返回，而是认为其处于safe region。当它返回时会阻塞直到STW结束&lt;/li&gt;
-&lt;/ol&gt;
-
-&lt;p&gt;当线程尝试访问标记为不可读的内存页时，会触发SIGSEGV信号，从而触发jvm内的signal handler，signal handler在收到SIGSEGV信号时会确认是否是由于safepoint检查触发了这个信号，如果是就会将自身挂起。&lt;/p&gt;
-
-&lt;h2 id=&quot;其他&quot;&gt;其他&lt;/h2&gt;
-
-&lt;p&gt;大部分内容参考了&lt;a href=&quot;https://blog.csdn.net/ITer_ZC/category_9263360.html&quot;&gt;iter_zc的博客&lt;/a&gt;，在此表示感谢。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry></feed>
+&lt;p&gt;当出现拥塞之后，通常需要降低发送速率来避免拥塞进一步加剧，而不同算法在这时的处理都不尽相同，最初的算法通过直接降低发送速率到1来简单处理，但是这种方式太过粗暴，后续的其他算法也都做了不同的尝试。&lt;/p&gt;</content><author><name></name></author><summary type="html">前言</summary></entry></feed>
