@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-03-29T19:44:10+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">k8s networkpolicy、service与ingress</title><link href="http://localhost:4000/2020/03/29/k8s-service-ingress.html" rel="alternate" type="text/html" title="k8s networkpolicy、service与ingress" /><published>2020-03-29T00:00:00+08:00</published><updated>2020-03-29T00:00:00+08:00</updated><id>http://localhost:4000/2020/03/29/k8s%20service%20ingress</id><content type="html" xml:base="http://localhost:4000/2020/03/29/k8s-service-ingress.html">&lt;h2 id=&quot;networkpolicy&quot;&gt;NetworkPolicy&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-04-05T16:36:10+08:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">熊纪元的博客</title><subtitle>think digital and be human</subtitle><entry><title type="html">k8s NetworkPolicy和Service</title><link href="http://localhost:4000/2020/03/29/k8s-service-ingress.html" rel="alternate" type="text/html" title="k8s NetworkPolicy和Service" /><published>2020-03-29T00:00:00+08:00</published><updated>2020-03-29T00:00:00+08:00</updated><id>http://localhost:4000/2020/03/29/k8s%20service%20ingress</id><content type="html" xml:base="http://localhost:4000/2020/03/29/k8s-service-ingress.html">&lt;h2 id=&quot;networkpolicy&quot;&gt;NetworkPolicy&lt;/h2&gt;
 
 &lt;p&gt;k8s默认情况下，所有pod都是连通的。如果有隔离的需求，可以通过设置NetworkPolicy来实现。NetworkPolicy在namespace范围下工作，它可以根据podSelector选中某些pod。而被NetworkPolicy选中的pod就进入了“默认隔离”的状态，只有符合NetworkPolicy中规则的流量才会被放行。值得注意的是NetworkPolicy需要对应的CNI插件支持，也就是说NetworkPolicy只提供了隔离规则的声明，而实际根据声明进行隔离操作的则是具体的网络实现方案，比如Calico、Weave、kube-router等，但是Flannel并不支持。&lt;/p&gt;
 
@@ -95,16 +95,16 @@
 
 &lt;p&gt;除了通过selector指定pod以外，k8s还支持显示指定Service和Endpoint的绑定关系，这需要首先声明一个不带selector字段的Service，比如：&lt;/p&gt;
 
-&lt;pre&gt;&lt;code class=&quot;language-ymal&quot;&gt;apiVersion: v1
-kind: Service
-metadata:
-  name: my-service
-spec:
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 9376
-&lt;/code&gt;&lt;/pre&gt;
+&lt;div class=&quot;language-yaml highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;na&quot;&gt;apiVersion&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;v1&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;kind&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;Service&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;metadata&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+  &lt;span class=&quot;na&quot;&gt;name&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;my-service&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;spec&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+  &lt;span class=&quot;na&quot;&gt;ports&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;protocol&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;TCP&lt;/span&gt;
+      &lt;span class=&quot;na&quot;&gt;port&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;80&lt;/span&gt;
+      &lt;span class=&quot;na&quot;&gt;targetPort&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;9376&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
 &lt;p&gt;然后再通过声明一个Endpoint类型对象，通过metadata中的name字段把它和Service关联起来：&lt;/p&gt;
 
@@ -143,7 +143,84 @@ spec:
 
 &lt;p&gt;这个模式下，kube-proxy会监听Service和Endpoint的变化，然后通过&lt;code class=&quot;highlighter-rouge&quot;&gt;netlink&lt;/code&gt;创建和定期维护ipvs规则。当pod需要访问Service时，ipvs会直接将流量转发到对应的目标pod。ipvs模式比起前两个模式性能更好，同时对大流量的场景支持的也更好（iptables会占用很多宿主机的CPU资源）。除此之外，ipvs模式还支持多种负载均衡策略比如round-robin、least connection、destination hash、source hash等等。&lt;/p&gt;
 
-&lt;p&gt;值得注意的是要使用ipvs模式需要宿主机支持ipvs功能，如果设置了ipvs模式但是宿主机不支持ipvs功能，则会fallback到iptables代理模式。&lt;/p&gt;</content><author><name></name></author><summary type="html">NetworkPolicy</summary></entry><entry><title type="html">k8s网络模型</title><link href="http://localhost:4000/2020/03/15/k8s-network.html" rel="alternate" type="text/html" title="k8s网络模型" /><published>2020-03-15T00:00:00+08:00</published><updated>2020-03-15T00:00:00+08:00</updated><id>http://localhost:4000/2020/03/15/k8s%20network</id><content type="html" xml:base="http://localhost:4000/2020/03/15/k8s-network.html">&lt;h2 id=&quot;k8s对网络连通性的约定&quot;&gt;k8s对网络连通性的约定&lt;/h2&gt;
+&lt;p&gt;值得注意的是要使用ipvs模式需要宿主机支持ipvs功能，如果设置了ipvs模式但是宿主机不支持ipvs功能，则会fallback到iptables代理模式。&lt;/p&gt;
+
+&lt;h3 id=&quot;集群外访问service&quot;&gt;集群外访问Service&lt;/h3&gt;
+
+&lt;p&gt;很明显Service相关的路由信息等只有在k8s集群内的才能访问到，而在k8s外想要访问Service，则需要一些额外的配置。&lt;/p&gt;
+
+&lt;h4 id=&quot;nodeport&quot;&gt;NodePort&lt;/h4&gt;
+
+&lt;p&gt;如果将Service的type字段设置为NodePort，k8s就会在每个node将那个端口代理到指定的Service中。可以在spec.ports.nodePort字段中要求分配的端口，如果不指定则会分配一个随机的端口（具体范围是–service-node-port-range标志指定的范围内，默认值：30000-32767）。比如：&lt;/p&gt;
+
+&lt;div class=&quot;language-yaml highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;na&quot;&gt;apiVersion&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;v1&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;kind&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;Service&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;metadata&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+  &lt;span class=&quot;na&quot;&gt;name&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;my-nginx&lt;/span&gt;
+  &lt;span class=&quot;na&quot;&gt;labels&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;run&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;my-nginx&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;spec&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+  &lt;span class=&quot;na&quot;&gt;type&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;NodePort&lt;/span&gt;
+  &lt;span class=&quot;na&quot;&gt;ports&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+  &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;nodePort&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;8080&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;targetPort&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;80&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;protocol&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;TCP&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;name&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;http&lt;/span&gt;
+  &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;nodePort&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;443&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;protocol&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;TCP&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;name&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;https&lt;/span&gt;
+  &lt;span class=&quot;na&quot;&gt;selector&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;run&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;my-nginx&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;采用NodePort方式部署Service，我们可以在集群内任意node通过指定端口访问实际的Service了。&lt;/p&gt;
+
+&lt;h4 id=&quot;loadbalancer&quot;&gt;LoadBalancer&lt;/h4&gt;
+
+&lt;p&gt;除了NodePort方式，我们还可以利用一些公有云提供的负载均衡能力来对外暴露Service。通过把Service的type设置为LoadBalancer，可以触发外部负载均衡的创建，来自外部的流量就能被转发到实际的pod了。&lt;/p&gt;
+
+&lt;h4 id=&quot;externalip&quot;&gt;ExternalIP&lt;/h4&gt;
+
+&lt;p&gt;k8s还支持为Service指定ExternalIP属性，可以将一个ip直接绑定到Service，这样访问这个ip时就可以直接访问到Service代理的pod中。但这个特性要求ExternalIP中设置的ip必须能够路由到k8s中的一个node上。&lt;/p&gt;
+
+&lt;h4 id=&quot;externalname&quot;&gt;ExternalName&lt;/h4&gt;
+
+&lt;p&gt;k8s 1.7版本之后，支持了一个叫做ExternalName的新特性，将Service的type设置为ExternalName并设置了externalName属性之后，就可以将Service和externalName直接关联起来。这个方式实际上是将Service的DNS解析结果设置为externalName的解析结果，所以k8s要求externalName必须是一个DNS域名格式。&lt;/p&gt;
+
+&lt;p&gt;ExternalName的作用更类似于将外部的服务包装成一个k8s的Service对象，比如我有一个数据库集群并不部署在k8s中，但是我可以将数据库集群的vip绑定到一个Service，这样k8s内的pod就可以通过这个Service访问这个数据库集群了。&lt;/p&gt;
+
+&lt;h3 id=&quot;ingress&quot;&gt;Ingress&lt;/h3&gt;
+
+&lt;p&gt;除了上述的将Service对外暴露的方式之外，k8s还提供了一个统一的抽象–Ingress。简单来说，Ingress就是多个Service的上层路由，可以将不同的流量路由到不同的Service上，而这只需要配置一个Ingress对象即可。举个例子：&lt;/p&gt;
+
+&lt;div class=&quot;language-yaml highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;na&quot;&gt;apiVersion&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;extensions/v1beta1&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;kind&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;Ingress&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;metadata&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+  &lt;span class=&quot;na&quot;&gt;name&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;cafe-ingress&lt;/span&gt;
+&lt;span class=&quot;na&quot;&gt;spec&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+  &lt;span class=&quot;na&quot;&gt;tls&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+  &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;hosts&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;cafe.example.com&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;secretName&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;cafe-secret&lt;/span&gt;
+  &lt;span class=&quot;na&quot;&gt;rules&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+  &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;host&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;cafe.example.com&lt;/span&gt;
+    &lt;span class=&quot;na&quot;&gt;http&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+      &lt;span class=&quot;na&quot;&gt;paths&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+      &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;path&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;/tea&lt;/span&gt;
+        &lt;span class=&quot;na&quot;&gt;backend&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+          &lt;span class=&quot;na&quot;&gt;serviceName&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;tea-svc&lt;/span&gt;
+          &lt;span class=&quot;na&quot;&gt;servicePort&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;80&lt;/span&gt;
+      &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;path&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;/coffee&lt;/span&gt;
+        &lt;span class=&quot;na&quot;&gt;backend&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+          &lt;span class=&quot;na&quot;&gt;serviceName&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;coffee-svc&lt;/span&gt;
+          &lt;span class=&quot;na&quot;&gt;servicePort&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;80&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;上面的配置中，spec.hosts下配置了Ingress的入口，也就是cafe.example.com，也就是当访问cafe.example.com这个host时，实际上就会访问到这个Ingress对象。rules下配置了两个规则，表示根据访问的路径不同，Ingress需要把流量转发到不同的Service下。&lt;/p&gt;
+
+&lt;p&gt;和其他资源类型类似，Ingress类型也需要对应的controller配合使用，Ingress的定义在k8s中创建之后，需要有具体的controller来创建具体的代理。目前Ingress controller的实现有很多，包括 Google Cloud Load Balancer， Nginx，Contour，Istio等等。他们都会根据Ingress的配置创建出实际的可工作的服务代理。&lt;/p&gt;
+
+&lt;p&gt;通过配置Ingress对象配合实际的Ingress controller实现，我们就可以省去将每个Service对外暴露的步骤，直接将Service配置到Ingress的下游即可。&lt;/p&gt;</content><author><name></name></author><summary type="html">NetworkPolicy</summary></entry><entry><title type="html">k8s网络模型</title><link href="http://localhost:4000/2020/03/15/k8s-network.html" rel="alternate" type="text/html" title="k8s网络模型" /><published>2020-03-15T00:00:00+08:00</published><updated>2020-03-15T00:00:00+08:00</updated><id>http://localhost:4000/2020/03/15/k8s%20network</id><content type="html" xml:base="http://localhost:4000/2020/03/15/k8s-network.html">&lt;h2 id=&quot;k8s对网络连通性的约定&quot;&gt;k8s对网络连通性的约定&lt;/h2&gt;
 
 &lt;ul&gt;
   &lt;li&gt;所有的Pod之间可以在不使用NAT网络地址转换的情况下相互通信&lt;/li&gt;
