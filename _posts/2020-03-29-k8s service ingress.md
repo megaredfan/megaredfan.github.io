@@ -98,7 +98,7 @@ spec:
 
 除了通过selector指定pod以外，k8s还支持显示指定Service和Endpoint的绑定关系，这需要首先声明一个不带selector字段的Service，比如：
 
-```ymal
+```yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -149,3 +149,82 @@ Service实际上是通过kube-proxy组件加上iptables来实现的。Service提
 这个模式下，kube-proxy会监听Service和Endpoint的变化，然后通过`netlink`创建和定期维护ipvs规则。当pod需要访问Service时，ipvs会直接将流量转发到对应的目标pod。ipvs模式比起前两个模式性能更好，同时对大流量的场景支持的也更好（iptables会占用很多宿主机的CPU资源）。除此之外，ipvs模式还支持多种负载均衡策略比如round-robin、least connection、destination hash、source hash等等。
 
 值得注意的是要使用ipvs模式需要宿主机支持ipvs功能，如果设置了ipvs模式但是宿主机不支持ipvs功能，则会fallback到iptables代理模式。
+
+### 集群外访问Service
+
+很明显Service相关的路由信息等只有在k8s集群内的才能访问到，而在k8s外想要访问Service，则需要一些额外的配置。
+
+#### NodePort
+
+如果将Service的type字段设置为NodePort，k8s就会在每个node将那个端口代理到指定的Service中。可以在spec.ports.nodePort字段中要求分配的端口，如果不指定则会分配一个随机的端口（具体范围是--service-node-port-range标志指定的范围内，默认值：30000-32767）。比如：
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-nginx
+  labels:
+    run: my-nginx
+spec:
+  type: NodePort
+  ports:
+  - nodePort: 8080
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - nodePort: 443
+    protocol: TCP
+    name: https
+  selector:
+    run: my-nginx
+```
+
+采用NodePort方式部署Service，我们可以在集群内任意node通过指定端口访问实际的Service了。
+
+#### LoadBalancer
+
+除了NodePort方式，我们还可以利用一些公有云提供的负载均衡能力来对外暴露Service。通过把Service的type设置为LoadBalancer，可以触发外部负载均衡的创建，来自外部的流量就能被转发到实际的pod了。
+
+#### ExternalIP
+
+k8s还支持为Service指定ExternalIP属性，可以将一个ip直接绑定到Service，这样访问这个ip时就可以直接访问到Service代理的pod中。但这个特性要求ExternalIP中设置的ip必须能够路由到k8s中的一个node上。
+
+#### ExternalName
+
+k8s 1.7版本之后，支持了一个叫做ExternalName的新特性，将Service的type设置为ExternalName并设置了externalName属性之后，就可以将Service和externalName直接关联起来。这个方式实际上是将Service的DNS解析结果设置为externalName的解析结果，所以k8s要求externalName必须是一个DNS域名格式。
+
+ExternalName的作用更类似于将外部的服务包装成一个k8s的Service对象，比如我有一个数据库集群并不部署在k8s中，但是我可以将数据库集群的vip绑定到一个Service，这样k8s内的pod就可以通过这个Service访问这个数据库集群了。
+
+### Ingress
+
+除了上述的将Service对外暴露的方式之外，k8s还提供了一个统一的抽象--Ingress。简单来说，Ingress就是多个Service的上层路由，可以将不同的流量路由到不同的Service上，而这只需要配置一个Ingress对象即可。举个例子：
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: cafe-ingress
+spec:
+  tls:
+  - hosts:
+    - cafe.example.com
+    secretName: cafe-secret
+  rules:
+  - host: cafe.example.com
+    http:
+      paths:
+      - path: /tea
+        backend:
+          serviceName: tea-svc
+          servicePort: 80
+      - path: /coffee
+        backend:
+          serviceName: coffee-svc
+          servicePort: 80
+```
+
+上面的配置中，spec.hosts下配置了Ingress的入口，也就是cafe.example.com，也就是当访问cafe.example.com这个host时，实际上就会访问到这个Ingress对象。rules下配置了两个规则，表示根据访问的路径不同，Ingress需要把流量转发到不同的Service下。
+
+和其他资源类型类似，Ingress类型也需要对应的controller配合使用，Ingress的定义在k8s中创建之后，需要有具体的controller来创建具体的代理。目前Ingress controller的实现有很多，包括 Google Cloud Load Balancer， Nginx，Contour，Istio等等。他们都会根据Ingress的配置创建出实际的可工作的服务代理。
+
+通过配置Ingress对象配合实际的Ingress controller实现，我们就可以省去将每个Service对外暴露的步骤，直接将Service配置到Ingress的下游即可。
