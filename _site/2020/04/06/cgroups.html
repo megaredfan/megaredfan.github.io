@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>cgroups | 熊纪元的博客</title>
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:title" content="cgroups" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="简介 cgroups是control groups的缩写，它是linux内核提供的一种可以管理进程对资源（cpu、内存、网络设备等）的使用的机制。cgroups被LXC（Linux Containers）用于实现虚拟化的资源管理手段，可以说是LXC的实现基础。cgroups主要的作用针对一组进程（进程组）声明一个控制组，在这个控制组下可以设置各种控制参数，然后通过不同的子系统（资源控制器）来解析各自的控制参数来对进程组内的进程的资源使用进行控制。" />
+<meta property="og:description" content="简介 cgroups是control groups的缩写，它是linux内核提供的一种可以管理进程对资源（cpu、内存、网络设备等）的使用的机制。cgroups被LXC（Linux Containers）用于实现虚拟化的资源管理手段，可以说是LXC的实现基础。cgroups主要的作用针对一组进程（进程组）声明一个控制组，在这个控制组下可以设置各种控制参数，然后通过不同的子系统（资源控制器）来解析各自的控制参数来对进程组内的进程的资源使用进行控制。" />
+<link rel="canonical" href="http://localhost:4000/2020/04/06/cgroups.html" />
+<meta property="og:url" content="http://localhost:4000/2020/04/06/cgroups.html" />
+<meta property="og:site_name" content="熊纪元的博客" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-04-06T00:00:00+08:00" />
+<script type="application/ld+json">
+{"headline":"cgroups","dateModified":"2020-04-06T00:00:00+08:00","datePublished":"2020-04-06T00:00:00+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2020/04/06/cgroups.html"},"description":"简介 cgroups是control groups的缩写，它是linux内核提供的一种可以管理进程对资源（cpu、内存、网络设备等）的使用的机制。cgroups被LXC（Linux Containers）用于实现虚拟化的资源管理手段，可以说是LXC的实现基础。cgroups主要的作用针对一组进程（进程组）声明一个控制组，在这个控制组下可以设置各种控制参数，然后通过不同的子系统（资源控制器）来解析各自的控制参数来对进程组内的进程的资源使用进行控制。","@type":"BlogPosting","url":"http://localhost:4000/2020/04/06/cgroups.html","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="熊纪元的博客" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">熊纪元的博客</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">cgroups</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-04-06T00:00:00+08:00" itemprop="datePublished">Apr 6, 2020
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h2 id="简介">简介</h2>
+<p>cgroups是control groups的缩写，它是linux内核提供的一种可以管理进程对资源（cpu、内存、网络设备等）的使用的机制。cgroups被LXC（Linux Containers）用于实现虚拟化的资源管理手段，可以说是LXC的实现基础。cgroups主要的作用针对一组进程（进程组）声明一个控制组，在这个控制组下可以设置各种控制参数，然后通过不同的子系统（资源控制器）来解析各自的控制参数来对进程组内的进程的资源使用进行控制。</p>
+
+<p>cgroups主要提供以下几个方面的功能：</p>
+
+<ul>
+  <li>限制资源使用。比如：memory子系统可以为进程组设定一个memory使用上限，一旦进程组使用的内存达到限额再申请内存，就会出发OOM（out of memory）</li>
+  <li>优先级控制。比如：可以使用cpu子系统为某个进程组分配特定cpu share</li>
+  <li>资源使用审计。比如：可以使用cpuacct子系统记录某个进程组使用的cpu时间</li>
+  <li>进程隔离。比如：使用ns子系统可以使不同的进程组使用不同的namespace，以达到隔离的目的，不同的进程组有各自的进程、网络、文件系统挂载空间</li>
+  <li>进程控制。比如：使用freezer子系统可以将进程组挂起和恢复</li>
+</ul>
+
+<h3 id="概念">概念</h3>
+<p>cgroups中有许多概念，这里集中列举如下：</p>
+
+<ul>
+  <li>任务（task），也就是系统中的一个进程</li>
+  <li>控制组（control group），控制组就是一组进程。cgroups中的资源控制都以控制组为单位。一个进程可以加入某个控制组，也可以从某个控制组转移到另一个控制组。一个进程组的进程可以使用cgroups以控制组为单位分配的资源，同时受到cgroups以控制组为单位设定的限制</li>
+  <li>层级（hierarchy），各个控制组实际上是通过树形的结构关联起来的，控制组树上的子节点会继承父节点的属性。</li>
+  <li>子系统（subsystem），一个子系统实际上就是一个资源控制器。前面提到cgroup会声明各种资源的使用限制，而具体负责执行这些限制的就是各个子系统，比如CPU子系统就是控制CPU时间分配的一个控制器。cgroups的子系统有很多，并且也可以支持新增。子系统必须附加（attach）到一个层级上才能起作用，一个子系统attach到某个层级以后，这个层级上的所有控制族群都受到这个子系统的控制。</li>
+</ul>
+
+<h3 id="各个子系统">各个子系统</h3>
+
+<ol>
+  <li>cpu 子系统，主要限制进程的 cpu 使用率。</li>
+  <li>cpuacct 子系统，可以统计 cgroups 中的进程的 cpu 使用报告。</li>
+  <li>cpuset 子系统，可以为 cgroups 中的进程分配单独的 cpu 节点或者内存节点。</li>
+  <li>memory 子系统，可以限制进程的 memory 使用量。</li>
+  <li>blkio 子系统，可以限制进程的块设备 io。</li>
+  <li>devices 子系统，可以控制进程能够访问某些设备。</li>
+  <li>net_cls 子系统，可以标记 cgroups 中进程的网络数据包，然后可以使用 tc 模块（traffic control）对数据包进行控制。</li>
+  <li>freezer 子系统，可以挂起或者恢复 cgroups 中的进程。</li>
+  <li>ns 子系统，可以使不同 cgroups 下面的进程使用不同的 namespace。</li>
+</ol>
+
+<h2 id="使用示例">使用示例</h2>
+
+<p>说了这么多概念和介绍，接下来看一下如果查看和操作cgroup的相关配置。</p>
+
+<h3 id="查看cgroup文件系统">查看cgroup文件系统</h3>
+
+<p>cgroup在实现上把用户接口实现为文件系统的形式，我们可以通过执行<code class="highlighter-rouge">mount -t cgroup</code>来查看cgroup挂载的文件系统：</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>~<span class="nv">$ </span>mount <span class="nt">-t</span> cgroup
+cgroup on /sys/fs/cgroup/systemd <span class="nb">type </span>cgroup <span class="o">(</span>rw,nosuid,nodev,noexec,relatime,xattr,release_agent<span class="o">=</span>/lib/systemd/systemd-cgroups-agent,name<span class="o">=</span>systemd<span class="o">)</span>
+cgroup on /sys/fs/cgroup/pids <span class="nb">type </span>cgroup <span class="o">(</span>rw,nosuid,nodev,noexec,relatime,pids<span class="o">)</span>
+cgroup on /sys/fs/cgroup/cpu,cpuacct <span class="nb">type </span>cgroup <span class="o">(</span>rw,nosuid,nodev,noexec,relatime,cpu,cpuacct<span class="o">)</span>
+cgroup on /sys/fs/cgroup/hugetlb <span class="nb">type </span>cgroup <span class="o">(</span>rw,nosuid,nodev,noexec,relatime,hugetlb<span class="o">)</span>
+cgroup on /sys/fs/cgroup/devices <span class="nb">type </span>cgroup <span class="o">(</span>rw,nosuid,nodev,noexec,relatime,devices<span class="o">)</span>
+cgroup on /sys/fs/cgroup/net_cls,net_prio <span class="nb">type </span>cgroup <span class="o">(</span>rw,nosuid,nodev,noexec,relatime,net_cls,net_prio<span class="o">)</span>
+cgroup on /sys/fs/cgroup/perf_event <span class="nb">type </span>cgroup <span class="o">(</span>rw,nosuid,nodev,noexec,relatime,perf_event<span class="o">)</span>
+cgroup on /sys/fs/cgroup/blkio <span class="nb">type </span>cgroup <span class="o">(</span>rw,nosuid,nodev,noexec,relatime,blkio<span class="o">)</span>
+cgroup on /sys/fs/cgroup/memory <span class="nb">type </span>cgroup <span class="o">(</span>rw,nosuid,nodev,noexec,relatime,memory<span class="o">)</span>
+cgroup on /sys/fs/cgroup/freezer <span class="nb">type </span>cgroup <span class="o">(</span>rw,nosuid,nodev,noexec,relatime,freezer<span class="o">)</span>
+cgroup on /sys/fs/cgroup/cpuset <span class="nb">type </span>cgroup <span class="o">(</span>rw,nosuid,nodev,noexec,relatime,cpuset<span class="o">)</span>
+</code></pre></div></div>
+<p>可以看到，在/sys/fs下有一个cgroup的目录，这是cgroup默认挂载的位置，下边有许多子目录，比如cpu、cpuset等等，这些就是不同的子系统的挂载点。每个挂载点即表示一棵与对应的子系统关联的cgroup树。</p>
+
+<p>在一棵cgroup树里面，会包含系统中的所有进程，但每个进程只能属于树的其中一个节点（进程组）。系统中可以有很多cgroup树，每棵树都和不同的subsystem关联，一个进程可以属于多棵树，即一个进程可以属于多个进程组，只是这些进程组和不同的subsystem关联。</p>
+
+<p>可以通过查看/proc/cgroups文件来确认当前系统支持的子系统，以及各个子系统绑定的cgroup树，比如：</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>~<span class="nv">$ </span><span class="nb">cat</span> /proc/cgroups
+<span class="c">#subsys_name    hierarchy       num_cgroups     enabled</span>
+cpuset          11              1               1
+cpu             3               64              1
+cpuacct         3               64              1
+blkio           8               64              1
+memory          9               104             1
+devices         5               64              1
+freezer         10              4               1
+net_cls         6               1               1
+perf_event      7               1               1
+net_prio        6               1               1
+hugetlb         4               1               1
+pids            2               68              1
+</code></pre></div></div>
+
+<p>输出结果的第一列是子系统的名称，比如cpuset等等，第二列是子系统绑定的cgroup树id，可以注意到cpu和cpuacct绑定到了同一个cgroup树，也就是说它们在/sys/fs/cgroup下挂载的路径是相同的，实际上是/sys/fs/cgroup/cpu,cpuacct，然后cgroup目录下还会有两个名为cpu和cpuacct的链接，链接到它们共同的挂载点。第三列和第四列的输出分别表示cgroup树下有多少控制组（也就是树的节点个数）以及是否开启（可以通过设置内核的启动参数“cgroup_disable”来控制子系统的开启）。</p>
+
+<h3 id="更新cgroup配置">更新cgroup配置</h3>
+
+<p>假如我们想要控制某个进程的cpu使用不能超过30%，我们就可以这样操作：</p>
+
+<p>1、在/sys/fs/cgroup/cpu下新建一个名为“demo”的目录，这个操作实际上就是在cpu这个子系统绑定的cgroup树下面创建了一个新的节点，也就是控制组。</p>
+
+<p>创建完demo目录后，我们可以看到demo目录下会自动新增很多文件，实际上这些文件在上一层的cpu目录下也存在。这些自动生成的文件实际上就是cgroup的各个控制属性，而前面提到过，作为cgroup树的子节点会继承父节点的特定属性，所以这些自动生成的文件也就是从cpu目录继承过来的。</p>
+
+<p>各个文件的作用简单介绍如下：</p>
+<ul>
+  <li>cgroup.clone_children：这个文件只对cpuset（subsystem）有影响，当该文件的内容为1时，新创建的cgroup将会继承父cgroup的配置，即从父cgroup里面拷贝配置文件来初始化新cgroup</li>
+  <li>cgroup.procs：当前cgroup中的所有进程ID，系统不保证ID是顺序排列的，且ID有可能重复</li>
+  <li>release_agent：里面包含了cgroup退出时将会执行的命令，系统调用该命令时会将相应cgroup的相对路径当作参数传进去。 注意：这个文件只会存在于root cgroup下面，其他cgroup里面不会有这个文件。</li>
+  <li>tasks当前cgroup中的所有线程ID，系统不保证ID是顺序排列的</li>
+</ul>
+
+<p>2、将cpu限额设置为20%，这里需要修改cpu.cfs_quota_us文件里的内容：</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cat</span> /sys/fs/cgroup/cpu/demo/cpu.cfs_quota_us 
+<span class="nt">-1</span>
+<span class="nb">echo </span>20000 <span class="o">&gt;</span> /sys/fs/cgroup/cpu/demo/cpu.cfs_quota_us
+</code></pre></div></div>
+
+<p>3、将要限制的进程id（比如3529）添加到cgroup下，这里需要修改tasks文件的内容：</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">echo </span>3529 <span class="o">&gt;&gt;</span> /sys/fs/cgroup/cpu/haoel/tasks
+</code></pre></div></div>
+<p>这样一来3529这个进程就会被cgroup的cpu子系统限制cpu的使用百分比为20%了。</p>
+
+<p>值得注意的是这里将进程id加入了tasks文件而不是cgroup.procs下，这两者的区别在于tasks支持线程级别的控制，而cgroup.proc是进程级别的控制。</p>
+
+<h2 id="cgroups的实现">cgroups的实现</h2>
+
+<p>cgroups通过实现cgroup文件系统来为用户提供管理cgroup的工具，而cgroup文件系统是基于Linux VFS实现的。相应地，cgroups为控制文件定义了相应的数据结构cftype，对其操作由cgroup文件系统定义的通过操作捕获，再调用cftype定义的具体实现。所以说上述的例子中我们对相关的文件进行操作时，实际上被cgroup捕获并转换成了对内核中cgroup相应的数据结构的操作，也就完成了用户态操作到内核态操作的映射。</p>
+
+  </div><a class="u-url" href="/2020/04/06/cgroups.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">熊纪元的博客</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">熊纪元的博客</li><li><a class="u-email" href="mailto:xiongjiyuan@hotmail.com">xiongjiyuan@hotmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/megaredfan"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">megaredfan</span></a></li><li><a href="https://www.twitter.com/jekyllrb"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">jekyllrb</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>think digital and be human</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
