@@ -1,4 +1,7 @@
-## 定时任务全新升级，从此“鸟枪换炮”
+---
+layout: post
+title: '定时任务全新升级，从此“鸟枪换炮”'
+---
 
 ### 简单的ScheduledTask
 对于业务开发中很普遍的定时任务需求，基础架构提供了定时任务组件[ScheduledTask](https://wiki.corp.kuaishou.com/x/EbUJD)。不过ScheduledTask的功能和实现比较基础，主要是通过zk锁保证实例间互斥以及利用定时线程池触发业务逻辑，使用ScheduledTask的用户只需要实现业务逻辑然后将服务部署到服务器即可。
