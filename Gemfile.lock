@@ -1,8 +1,8 @@
 GEM
   remote: https://rubygems.org/
   specs:
-    addressable (2.6.0)
-      public_suffix (>= 2.0.2, < 4.0)
+    addressable (2.9.0)
+      public_suffix (>= 2.0.2, < 8.0)
     colorator (1.1.0)
     concurrent-ruby (1.1.5)
     em-websocket (0.5.1)
@@ -10,11 +10,9 @@ GEM
       http_parser.rb (~> 0.6.0)
     eventmachine (1.2.7)
     eventmachine (1.2.7-java)
-    eventmachine (1.2.7-x64-mingw32)
     eventmachine (1.2.7-x86-mingw32)
     ffi (1.11.1)
     ffi (1.11.1-java)
-    ffi (1.11.1-x64-mingw32)
     ffi (1.11.1-x86-mingw32)
     forwardable-extended (2.6.0)
     http_parser.rb (0.6.0)
@@ -55,7 +53,7 @@ GEM
       jekyll-seo-tag (~> 2.1)
     pathutil (0.16.2)
       forwardable-extended (~> 2.6)
-    public_suffix (3.0.3)
+    public_suffix (7.0.5)
     rb-fsevent (0.10.3)
     rb-inotify (0.10.0)
       ffi (~> 1.0)
@@ -75,7 +73,7 @@ GEM
 PLATFORMS
   java
   ruby
-  x64-mingw32
+  x64-mingw-ucrt
   x86-mingw32
   x86-mswin32
 
